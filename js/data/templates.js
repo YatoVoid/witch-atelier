@@ -16,22 +16,12 @@
 // resulting "jump" between a stroke's end and the next one's start is
 // just more path for the normalizer to work with, not a special case.
 //
-// "straight", "bend", "bolt", and "wavy" each also carry at least one
-// template traced directly off the actual reference glyph art in
-// assets/signs/*.webp (auto-extracted: the art was thinned to a
-// skeleton and the resulting point path spot-checked by eye against the
-// source image before being pasted in here). Earlier templates for
-// "bend" and "bolt" were built from a verbal idea of each shape (a
-// bend is "a corner", a bolt is "a zigzag") rather than from the art
-// itself, and didn't actually match it: the real Bend glyph is a smooth
-// J-curve, not the sharp symmetric V the old template used, and the
-// real Bolt glyph has a small diamond sitting in the middle of its
-// spine that a plain zigzag template had no way to match. Column's and
-// Pull's glyphs also carry real decoration (an arrowhead cap; a small
-// triangle above the arrowhead) the synthetic templates never captured.
-// This was a structural bug, not a threshold-tuning one: no amount of
-// adjusting match-distance thresholds fixes a template being compared
-// against that doesn't resemble what it's supposed to recognize.
+// "straight", "bend", "bolt", and "wavy" also carry templates traced
+// directly off assets/signs/*.webp (auto-extracted, spot-checked by eye
+// against the source). The old "bend"/"bolt" templates were built from
+// a verbal idea of each shape rather than the art itself and didn't
+// match it (a smooth J-curve vs a sharp V; a diamond mid-spine vs a
+// plain zigzag) -- a structural bug, not a threshold one.
 //
 // Add more templates here to improve recognition on a shape it still
 // gets wrong (the in-app training flow instead saves personal corrections
@@ -86,15 +76,10 @@ const SHAPE_TEMPLATES = {
     ],
   ],
   bend: [
-    // A clean, symmetric single corner. Kept alongside the real-glyph
-    // templates below rather than replaced: a real reference glyph
-    // traced off actual artwork carries its own small asymmetries (a
-    // slightly uneven arm, a stray extra kink), which is honest to the
-    // source but scores a real, careful hand-drawn corner worse than a
-    // template built to be exactly what a corner is. Point-cloud
-    // matching takes the closest of however many templates a category
-    // has, so a clean geometric example and a real-art example coexist
-    // instead of competing.
+    // Clean symmetric corner, kept alongside the real-glyph templates
+    // below (not replaced): a traced glyph's small asymmetry scores a
+    // clean hand-drawn corner worse than a template built to be exactly
+    // that.
     [
       { x: -35, y: 35 }, { x: -32.1, y: 29.2 }, { x: -29.2, y: 23.3 }, { x: -26.2, y: 17.5 }, { x: -23.3, y: 11.7 },
       { x: -20.4, y: 5.8 }, { x: -17.5, y: 0 }, { x: -14.6, y: -5.8 }, { x: -11.7, y: -11.7 }, { x: -8.7, y: -17.5 },
@@ -102,38 +87,23 @@ const SHAPE_TEMPLATES = {
       { x: 8.8, y: -17.5 }, { x: 11.7, y: -11.7 }, { x: 14.6, y: -5.8 }, { x: 17.5, y: 0 }, { x: 20.4, y: 5.8 },
       { x: 23.3, y: 11.7 }, { x: 26.3, y: 17.5 }, { x: 29.2, y: 23.3 }, { x: 32.1, y: 29.2 }, { x: 35, y: 35 },
     ],
-    // Bend's own reference glyph: a smooth J-curve, traced off
-    // assets/signs/bend.webp. An earlier version of this file replaced
-    // the clean template above with this one instead of adding it,
-    // which broke matching for a clean, carefully-drawn corner (and the
-    // synthetic geometry in test/run.js) since a real traced glyph is
-    // never quite as regular as a hand-built shape.
+    // Bend's own glyph: a smooth J-curve, traced off bend.webp.
     [
       { x: 23, y: 46 }, { x: 31, y: 55 }, { x: 34, y: 54 }, { x: 34, y: 15 }, { x: 37, y: 14 }, { x: 46, y: 23 },
     ],
-    // Direction's own reference glyph: a single sharp peak, no straight
-    // spine, traced off assets/signs/direction.webp. Direction lives in
-    // the same zigzag/one-corner family as Bend and Bolt (see
-    // classify.js's SIGN_BUCKETS), and its own glyph is a plain corner
-    // shape, distinct in sharpness from Bend's curve but still a single
-    // bend rather than a multi-turn zigzag.
+    // Direction's own glyph: a single sharp peak, traced off direction.webp.
     [
       { x: 49, y: 42 }, { x: 35, y: 24 }, { x: 29, y: 29 }, { x: 20, y: 42 },
     ],
   ],
   bolt: [
-    // A clean multi-turn zigzag, kept for the same reason as the clean
-    // corner under "bend" above: a real hand-drawn or reference-traced
-    // zigzag carries its own irregularity that scores a clean, careful
-    // one worse than a template built to be exactly that.
+    // Clean multi-turn zigzag, kept alongside the real glyph below for
+    // the same reason as "bend" above.
     [
       { x: -45, y: -25 }, { x: -27, y: 25 }, { x: -9, y: -25 }, { x: 9, y: 25 }, { x: 27, y: -25 }, { x: 45, y: 25 },
     ],
-    // Bolt's own reference glyph: a vertical spine with a small diamond
-    // sitting in the middle of it, traced off assets/signs/bolt.webp. An
-    // earlier version of this file replaced the clean zigzag above with
-    // this one instead of adding it; see the note under "bend" for why
-    // that broke matching for a clean zigzag draw.
+    // Bolt's own glyph: a spine with a small diamond mid-spine, traced
+    // off bolt.webp.
     [
       { x: 34, y: 7 }, { x: 34, y: 28 },
       { x: 35, y: 29 }, { x: 39, y: 31 }, { x: 41, y: 34 }, { x: 39, y: 38 },
@@ -152,11 +122,7 @@ const SHAPE_TEMPLATES = {
       { x: 58.3, y: -15.3 }, { x: 60.7, y: -11 }, { x: 63, y: -7.3 }, { x: 65.3, y: -4.4 }, { x: 67.7, y: -2.6 },
       { x: 70, y: -2 },
     ],
-    // Float's own reference glyph: a genuine S-curve ribbon (two parallel
-    // wavy strokes), traced off assets/signs/float.webp. Of the six
-    // signs currently bucketed under the "wavy" family in classify.js,
-    // Float is the one whose own glyph is actually wave-shaped; see the
-    // note on SIGN_BUCKETS there about the other five.
+    // Float's own glyph: an S-curve ribbon, traced off float.webp.
     [
       { x: 40, y: 16 }, { x: 35, y: 23 }, { x: 35, y: 30 }, { x: 44, y: 39 }, { x: 44, y: 45 }, { x: 39, y: 53 },
       { x: 30, y: 16 }, { x: 25, y: 23 }, { x: 25, y: 30 }, { x: 34, y: 39 }, { x: 34, y: 45 }, { x: 29, y: 53 },

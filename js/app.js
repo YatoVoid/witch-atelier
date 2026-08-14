@@ -32,39 +32,25 @@
   const CALIBRATION_REPS = 5; // examples collected per shape
   let calibration = null; // { shapeIndex, rep } while active, else null
 
-  // Every archetype the "wrong reading?" correction panel can set a sign
-  // to. Straight and Wide Sweep are shape-symmetric (Column and Pull are
-  // the exact same shape, only direction tells them apart, same for
-  // Dispersion/Convergence), so each gets its own explicit option rather
-  // than one "Straight" button that only re-derives direction from
-  // whatever instance.inverted already was. That's exactly why a
-  // Column that got misread as Pull used to be uncorrectable here: the
-  // shape reading was already right, only the direction was wrong, and
-  // nothing let you flip just that. `inverted` gets set alongside
-  // archetypeId for these four so compose.js's force direction (Column's
-  // contribute() in signs.js reads it directly) matches what the label
-  // now says, not just the label.
-  //
-  // trainLabel/trainable: Straight, Wavy, Bend, and Bolt go through
-  // classify.js's point-cloud shape matcher (js/data/templates.js) and
-  // can be trained: picking one of their options saves the drawn stroke
-  // as a personal example, so a similar shape reads right next time (see
-  // js/training.js). Wide Sweep and the closed shapes are read straight
-  // off the ring-relative geometry (how wide an arc the stroke sweeps
-  // around the ring center, whether it closes into a loop) rather than
-  // shape-matched, so there's nothing to save an example of; picking one
-  // only corrects this sign, which the UI says outright.
-  const CORRECTION_FAMILIES = [
-    { archetypeId: "column", name: "Column (outward)", trainLabel: "straight", trainable: true, inverted: false },
-    { archetypeId: "pull", name: "Pull (inward)", trainLabel: "straight", trainable: true, inverted: true },
-    { archetypeId: "dispersion", name: "Dispersion (outward)", trainable: false, inverted: false },
-    { archetypeId: "convergence", name: "Convergence (inward)", trainable: false, inverted: true },
-    { archetypeId: "levitation", name: "Wavy", trainLabel: "wavy", trainable: true },
-    { archetypeId: "bend", name: "Bend", trainLabel: "bend", trainable: true },
-    { archetypeId: "bolt", name: "Bolt", trainLabel: "bolt", trainable: true },
-    { archetypeId: "diamond", name: "Diamond", trainable: false },
-    { archetypeId: "crush", name: "Crush", trainable: false },
-  ];
+  // Every sign the "wrong reading?" panel can set. Built from
+  // SIGN_BUCKETS, not a separate hardcoded list: a second copy of family
+  // membership drifted out of sync with classify.js once already (this
+  // list kept pointing "Wavy" at levitation after levitation moved to
+  // straightOut).
+  const FAMILY_TRAIN_LABEL = { straightOut: "straight", straightIn: "straight", wavy: "wavy" };
+  const SIGN_TRAIN_LABEL_OVERRIDE = { bend: "bend", direction: "bend", bird: "bend", bolt: "bolt" };
+  const CORRECTION_FAMILIES = Object.keys(SIGN_BUCKETS).flatMap((familyKey) =>
+    SIGN_BUCKETS[familyKey].map((archetypeId) => {
+      const trainLabel = SIGN_TRAIN_LABEL_OVERRIDE[archetypeId] || FAMILY_TRAIN_LABEL[familyKey];
+      return {
+        archetypeId,
+        name: getArchetype(archetypeId).name,
+        trainLabel,
+        trainable: Boolean(trainLabel),
+        inverted: familyKey.endsWith("In"),
+      };
+    })
+  );
 
   // 700ms wasn't enough room to reposition between the parts of a
   // deliberate multi-stroke sign (moving your hand/finger to line up the
@@ -443,24 +429,12 @@
       });
       row.appendChild(removeBtn);
 
-      // Wrapper groups the row with its correction panel visually (a
-      // bordered card), so it's clear the panel belongs to this specific
-      // sign and not the list in general.
       const entry = document.createElement("div");
       entry.className = "sign-entry";
       entry.appendChild(row);
 
-      // If the shape came out wrong at the family level (read as Bolt when
-      // it was clearly meant as a straight line, say), the dropdown above
-      // can't fix that, it only offers alternatives within the family
-      // classify.js already picked. This panel covers all 8 families, not
-      // just the 4 the shape matcher trains on: for Straight/Wavy/Bend/Bolt
-      // it saves the drawn stroke as a personal correction (see
-      // js/training.js) so the same shape reads right next time; Wide
-      // Sweep/Diamond/Crush are read from ring-relative geometry rather
-      // than shape matching, so picking one of those corrects only this
-      // sign, which the panel says outright rather than implying it's
-      // remembered when it isn't.
+      // Lists every sign directly (not just the family), so picking the
+      // right one doesn't need the dropdown above as a second step.
       const panelState = correctionPanelState.get(instance) || { open: false, message: null };
 
       const toggleBtn = document.createElement("button");

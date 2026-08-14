@@ -102,14 +102,9 @@ function buildLabel(sigil, params, columnsCancel) {
   parts.push(params.hasDirection ? `${Vector.compassLabel(params.direction)} direction` : "no directional bias");
   if (params.spreadRatio > 0.5) parts.push("wide spread");
   if (params.sustainRatio > 0.5) parts.push("sustained");
-  // A single sign's own contribution to intensity tops out around 0.7
-  // (length is clamped to 1.4, and a directional sign contributes
-  // length * 0.5), so the old threshold of 1.2 was mathematically out of
-  // reach for one sign, no matter how large you drew it: the label read
-  // identically for the smallest and largest possible version of the
-  // same single-sign spell. Matched to the 0.5 threshold spreadRatio and
-  // sustainRatio already use above, so a single sign drawn large, or two
-  // or three modest ones together, can actually cross it.
+  // A single sign tops out near 0.7 intensity, so the old 1.2 threshold
+  // was unreachable by one sign regardless of size; lowered to match
+  // spreadRatio/sustainRatio's 0.5.
   if (params.intensity > 0.5) parts.push("high intensity");
   return parts.join(", ");
 }

@@ -224,12 +224,8 @@ for (const arm of [35, 70, 100]) {
 check("Direction is reachable from a peak's own family", bucketCandidates("bend").includes("direction"), true);
 check("Direction is not still listed under Pull's family", bucketCandidates("pull").includes("direction"), false);
 
-// Levitation, Bird, and Eye were bucketed under "wavy" even though none
-// of their reference glyphs are wavy-shaped (a plain arrow, a curved
-// hook, a closed oval): a person drawing any of them got a geometrically
-// correct family read the sign list couldn't act on, since the sign was
-// still filed under the wrong family here. Moved to match their actual
-// shape (see the comment on SIGN_BUCKETS in classify.js).
+// Levitation/Bird/Eye moved out of "wavy" to match their actual glyph
+// shape (see SIGN_BUCKETS in classify.js).
 check("Levitation is reachable from Column's family (its glyph is a straight arrow)", bucketCandidates("column").includes("levitation"), true);
 check("Levitation is not still listed under wavy", bucketCandidates("float").includes("levitation"), false);
 check("Bird is reachable from Bend's family (its glyph is a curved hook)", bucketCandidates("bend").includes("bird"), true);
@@ -386,29 +382,14 @@ checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
-// A wide sweep and a Diamond both drawn small enough to land close to
-// ring center used to break in opposite-but-related ways: a small sweep
-// had every one of its points inside SPREAD_DEAD_ZONE (fixed by shrinking
-// that zone from 60px to 20px), and a small Diamond got its corners
-// sampled at the same fixed 20-point spacing as a large one, so the same
-// few px of tremor covered a much bigger share of the gap between
-// samples and started reading as chaotic (fixed by scaling the sample
-// count with the shape's own perimeter). Both fixes checked at a size
-// well below what used to fail.
+// Small-size regressions: SPREAD_DEAD_ZONE (60px -> 20px) fixed small
+// sweeps; scaling the diamond resample count to perimeter fixed small
+// diamonds. Below ~50px across, diamonds still aren't reliably
+// recoverable (tremor is 15-40% of the shape's own size); tracked as an
+// accepted floor with a low bar, not silently left unmeasured.
 checkJitterRobust("wideOut (dispersion), drawn small", () => arcSweep(25, -70, 70, true), "dispersion");
 checkJitterRobust("wideIn (convergence), drawn small", () => arcSweep(25, -70, 70, false), "convergence");
 checkJitterRobust("closedSmooth (diamond), drawn small", () => realDiamond(150, 0, 50), "diamond");
-// A Diamond drawn genuinely tiny (under ~25px radius, so under 50px
-// across) is not reliably recoverable at plausible hand tremor: a few px
-// of jitter is 15-40% of the shape's own size at that point, big enough
-// to fake or hide a corner outright, not just blur one, and below ~22px
-// radius it misreads as Crush every single time, not just often. Tried
-// scaling the resample count down further and a light smoothing pass on
-// top of it; neither closed the gap without also making Crush detection
-// worse at normal sizes, so this is tracked as a real, accepted floor
-// rather than silently left unmeasured. Bar set low, matching the actual
-// rate at this size, so this exists to catch a regression to "even worse
-// than today," not to demand the floor keep moving.
 checkJitterRobust("closedSmooth (diamond), drawn tiny (known limitation, low bar)", () => realDiamond(150, 0, 25), "diamond", 0.3);
 
 // ---- 5. real hand-drawn examples that came back misclassified in
@@ -465,18 +446,9 @@ function realSign1(ox, oy) {
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
 
-// A crosshair traced directly from a user's own drawing (pulled from the
-// devtools debug log, not synthesized): unlike realSign1 above, none of
-// its four arms share an exact common origin pixel, the same way a real
-// hand never quite returns to the same spot four times in a row. That
-// small, realistic gap between arms used to be enough on its own to
-// make this misread as "wavy": no single arm dominated 65% of the ink,
-// so all four got concatenated into one polyline, and the small "jumps"
-// between each arm's slightly-offset start point read as corners that
-// were never actually drawn, scoring worse against every template than
-// the four arms did individually. Original coordinates (ring center at
-// the origin), left untranslated since they're already centered close
-// enough to it for the test to mean the same thing.
+// Real crosshair from a user's devtools log, not synthesized: unlike
+// realSign1, its four arms don't share an exact origin pixel, which used
+// to be enough on its own to misread this as "wavy" (see classify.js).
 function realSign2() {
   return [
     [{ x: -10, y: -111.8 }, { x: -10, y: -107.8 }, { x: -10, y: -103.8 }, { x: -11, y: -98.8 }, { x: -11, y: -92.8 }, { x: -11, y: -87.8 }, { x: -12, y: -81.8 }, { x: -12, y: -77.8 }, { x: -12, y: -73.8 }, { x: -12, y: -69.8 }, { x: -12, y: -66.8 }, { x: -12, y: -63.8 }],

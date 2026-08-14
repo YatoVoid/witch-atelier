@@ -143,28 +143,11 @@ function sharpTurnCount(points, angleThreshold) {
 // alternatives within whichever family the shape actually got classified
 // into, and a peak was never going to classify as straightIn no matter
 // how the geometry was read.
-// Family membership is decided by each sign's own reference glyph shape
-// (assets/signs/*.webp), not by what its narrative effect resembles.
-// "wavy" used to also list levitation, bird, and eye: tracing the actual
-// glyph art (see js/data/templates.js) showed none of the three are
-// wavy-shaped. Levitation's glyph is a plain straight arrow, Eye's is a
-// closed oval with a center dot, and Bird's dominant curve behaves like
-// a single bend, not a back-and-forth wiggle -- so a person drawing any
-// of them got a geometrically correct family read that the sign list
-// couldn't offer, since the sign itself was still filed under the wrong
-// family here. Moved to the families their actual shapes land in.
-//
-// Vision (an eight-arm radial burst) and Dancing Puppet (a ring of four
-// loops) are left under "wavy" even though neither is wavy-shaped
-// either: unlike the three above, neither one matches ANY of the app's
-// eight family detection methods reliably. Which family they land in
-// today is closest-template coincidence, not a real classification, and
-// could silently shift again the next time a template changes. Forcing
-// them into whatever they happen to match right now would trade one
-// wrong bucket for a differently-wrong one; a real fix needs dedicated
-// detection for each shape (a radial-arm-count check, a loop-count
-// check), not a bucket move. Tracked here as a known gap, not silently
-// left unmeasured.
+// Family membership follows each sign's actual glyph shape (assets/signs),
+// not its effect. Vision (radial burst) and Dancing Puppet (ring of loops)
+// stay under "wavy" as a known gap: neither matches any family's
+// detection reliably, so forcing a bucket on them would just be a
+// differently-wrong coincidence, liable to shift again on template changes.
 const SIGN_BUCKETS = {
   straightOut: ["column", "crosshair", "enlarge", "levitation"],
   straightIn: ["pull"],
@@ -394,42 +377,15 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const overallEnd = averagedEndpoint(mainStroke, true);
   const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
 
-  // Concatenating every stroke in drawing order (the only option before)
-  // works when several comparably-sized strokes together form the shape
-  // (a crosshair's four arms, a zigzag drawn as separate segments), but
-  // not when one stroke is clearly the actual gesture and another is a
-  // minor decoration landing wherever it happens to land relative to
-  // drawing order, an arrowhead barb or a cap added near whichever end
-  // felt natural. Concatenated regardless of position, that decoration
-  // can create a large "jump" in the shape between the main stroke's real
-  // endpoint and the decoration's position, which reads as a corner that
-  // was never actually drawn. mainStroke alone doesn't have that problem,
-  // so it's used whenever it already accounts for most of the ink, same
-  // threshold and reasoning as the old dominance check this replaced.
-  // Concatenation itself has a failure mode dominance-gating alone
-  // doesn't cover: several genuinely equal-length strokes (a crosshair's
-  // four separate arms) where no single one dominates, so the code falls
-  // to concatenating all of them -- but real hand-drawn strokes rarely
-  // return to the exact same pixel between arms, so the "jump" from one
-  // arm's slightly-off endpoint to the next arm's slightly-off start
-  // becomes extra path the normalizer has no way to tell apart from a
-  // real corner. A crosshair with four confidently-straight arms, each
-  // individually a near-perfect match on its own, still ends up
-  // matching nothing confidently once concatenated purely from those
-  // jumps, and used to fall through to whatever the least-bad guess
-  // happened to be. Checked first: if most of the individual strokes
-  // already agree, independently, on the same shape, that's a stronger
-  // signal than however the concatenated jumble happens to score.
-  // The independent-match shortcut below only means something for
-  // strokes that actually radiate from a shared point (a crosshair's
-  // four arms): any lone straight segment trivially matches "straight"
-  // with near-zero distance, including one piece of a zigzag or a
-  // corner drawn with the pen lifted partway through, so agreement
-  // alone can't tell a genuine multi-arm sign from an ordinary shape
-  // drawn in more than one stroke. Requiring at least 3 strokes to
-  // converge on a shared endpoint (a real corner or a chain of zigzag
-  // segments only ever joins 2 at a time) is what actually distinguishes
-  // them.
+  // mainStroke alone avoids a decoration (an arrowhead barb) creating a
+  // false "jump" when concatenated; used once it's most of the ink.
+  // Below that, concatenating equal-length strokes has its own jump
+  // problem (a crosshair's arms rarely share an exact pixel), so a
+  // genuine multi-arm hub is matched per-arm instead of concatenated.
+  // Requires 3+ strokes converging: a plain corner or zigzag only ever
+  // joins 2 strokes at a shared point, and any lone straight segment
+  // trivially matches "straight" on its own, so agreement alone can't
+  // tell a real hub apart from an ordinary multi-stroke shape.
   function radiatesFromSharedHub(strokes) {
     if (strokes.length < 3) return false;
     const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
@@ -454,15 +410,10 @@ function classifyStrokeGroup(paths, extraTemplates) {
   if (strokeLength(mainStroke) / totalStrokeLength > 0.65) {
     match = matchShapeTemplate(mainStroke, extraTemplates);
   } else if (radiatesFromSharedHub(valid)) {
-    // Once the hub check above has already established this is a
-    // genuine multi-arm shape, each arm's own best match is a
-    // meaningful vote on its own, even short of the stricter single-
-    // stroke confidence bar used elsewhere: hand tremor on a ~40px arm
-    // routinely pushes its individual match distance to just past 0.06,
-    // right where the global threshold sits, without the arm's shape
-    // actually being ambiguous. Requiring that same strict bar again
-    // here, on top of the hub check, rejected real jittered arms that
-    // clearly agreed with each other.
+    // Majority vote across arms, not each arm re-cleared against the
+    // stricter single-stroke confidence bar: jitter on a ~40px arm
+    // routinely pushes it just past that bar without the arm's shape
+    // actually being ambiguous.
     const perStroke = valid.map((s) => matchShapeTemplate(s, extraTemplates));
     const counts = {};
     for (const m of perStroke) counts[m.label] = (counts[m.label] || 0) + 1;
