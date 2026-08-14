@@ -47,9 +47,35 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
+// How far the stroke wanders sideways off the straight line from its start
+// to its end, relative to how far it travels. A hand-drawn "straight" line
+// still has a few pixels of tremor in it; measuring total path length
+// against the chord (the old approach) penalizes that tremor heavily over a
+// long stroke. Measuring the worst sideways wobble instead barely reacts to
+// small jitter and still catches an actual curve.
+function maxDeviationRatio(points) {
+  const start = points[0];
+  const end = points[points.length - 1];
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const chordLenSq = dx * dx + dy * dy;
+  if (chordLenSq < 1e-6) return 1;
+  let maxDev = 0;
+  for (const p of points) {
+    const t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / chordLenSq;
+    const projX = start.x + t * dx;
+    const projY = start.y + t * dy;
+    const dev = Math.hypot(p.x - projX, p.y - projY);
+    if (dev > maxDev) maxDev = dev;
+  }
+  return maxDev / Math.sqrt(chordLenSq);
+}
+
 // Sharp direction reversals within a single stroke. Never compared across
-// two separate strokes, a pen lift between parts isn't a turn.
-function sharpTurnCount(points) {
+// two separate strokes, a pen lift between parts isn't a turn. The angle
+// threshold is deliberately high (~85 degrees) so a smooth wave, which
+// still turns but gradually, doesn't register as a zigzag.
+function sharpTurnCount(points, angleThreshold) {
   let count = 0;
   let prevHeading = null;
   for (let i = 1; i < points.length; i++) {
@@ -61,7 +87,7 @@ function sharpTurnCount(points) {
       let diff = heading - prevHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      if (Math.abs(diff) > 1.1) count++;
+      if (Math.abs(diff) > angleThreshold) count++;
     }
     prevHeading = heading;
   }
@@ -94,27 +120,41 @@ function bucketCandidates(archetypeId) {
   return [archetypeId];
 }
 
+function familyKeyOf(archetypeId) {
+  for (const key in SIGN_BUCKETS) {
+    if (SIGN_BUCKETS[key].includes(archetypeId)) return key;
+  }
+  return null;
+}
+
+const ZIGZAG_ANGLE = 1.35; // ~77 degrees
+const ZIGZAG_MIN_COUNT = 2;
+
 // A sign is one or more strokes drawn close together in time (see app.js's
 // grouping window). Most of the reference glyphs are a short spine plus one
 // or two small ticks or caps, so the spine (the longest stroke) carries the
-// direction and shape; the shorter strokes only get checked for a zigzag
-// (any part drawn as a zigzag reads as Bolt/Bend regardless of the rest).
+// direction and shape. Shorter strokes only get checked for a zigzag, and
+// only if they're substantial (at least a third of the spine's length) so a
+// small cap or tick can't accidentally flip the whole sign to Bolt.
 function classifyStrokeGroup(paths) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
 
+  const spine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const spineLength = strokeLength(spine);
+  const zigzagGate = Math.max(10, spineLength * 0.3);
+
   for (const path of valid) {
-    const resampled = resample(path, Math.min(20, Math.max(6, path.length)));
-    if (sharpTurnCount(resampled) >= 3) return "bolt";
+    if (strokeLength(path) < zigzagGate) continue;
+    const resampled = resample(path, 16);
+    if (sharpTurnCount(resampled, ZIGZAG_ANGLE) >= ZIGZAG_MIN_COUNT) return "bolt";
   }
 
-  const spine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
   const points = resample(spine, 20);
   const start = points[0];
   const end = points[points.length - 1];
-  const arcLength = strokeLength(points);
   const chordLength = Math.hypot(end.x - start.x, end.y - start.y);
-  const straightness = chordLength / (arcLength || 1e-6);
+  const wobble = maxDeviationRatio(points);
   const radialDelta = Math.hypot(end.x, end.y) - Math.hypot(start.x, start.y);
 
   let minX = Infinity,
@@ -129,12 +169,12 @@ function classifyStrokeGroup(paths) {
   }
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
   const loopClosure = Math.max(0, 1 - chordLength / boundSize);
-  const closedShape = loopClosure > 0.6 && arcLength > boundSize * 0.7;
-  if (closedShape) return sharpTurnCount(points) < 2 ? "diamond" : "crush";
+  const closedShape = loopClosure > 0.6 && strokeLength(points) > boundSize * 0.7;
+  if (closedShape) return sharpTurnCount(points, ZIGZAG_ANGLE) < 2 ? "diamond" : "crush";
 
   const allPoints = valid.flatMap((p) => p);
   const spread = angularSpread(allPoints);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  if (straightness > 0.8) return radialDelta >= 0 ? "column" : "pull";
+  if (wobble < 0.25) return radialDelta >= 0 ? "column" : "pull";
   return "levitation";
 }

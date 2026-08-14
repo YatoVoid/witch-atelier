@@ -14,7 +14,7 @@ Open `http://localhost:8000`.
 
 ## How it works
 
-Nothing is pre-selected before you draw a sign. You draw a stroke anywhere on the circle, and its shape decides which family it belongs to:
+Nothing is pre-selected before you draw a sign. You draw one or more strokes anywhere on the circle (a pause of under a second locks the sign in, so a few strokes drawn close together in time count as one sign, matching how most of the reference glyphs are actually built from a spine plus a tick or two), and the shape decides which family it belongs to:
 
 - straight, drawn outward: Column, Crosshair, or Enlarge
 - straight, drawn inward: Pull or Direction
@@ -27,7 +27,8 @@ Nothing is pre-selected before you draw a sign. You draw a stroke anywhere on th
 
 There's no shape difference between the signs within a family in the source material either. The stroke narrows it to a family; the sign-list row shows the rest of that family in a dropdown so you can say which one you actually meant, rather than the app pretending to detect a distinction that isn't there in the drawing.
 
-- `js/engine/classify.js`: reads a raw stroke's geometry (straightness, angular spread from the ring's center, turning/zigzag, whether it closes into a loop) and returns a family and its default member. Deterministic heuristics, no model, no network call.
+- `js/engine/classify.js`: reads the geometry of a sign's strokes (how far it wobbles off a straight line rather than raw arc length, since a hand-drawn "straight" line still has a few pixels of tremor in it; angular spread from the ring's center; sharp alternating turns for a zigzag; whether it closes into a loop) and returns a family and its default member. The longest stroke in the group carries the direction; shorter strokes only get checked for a zigzag, and only if they're a substantial fraction of the longest one's length, so a small cap or tick can't flip the whole sign to Bolt. Deterministic heuristics, no model, no network call.
+- `js/data/signatures.js`: recognizes a drawn spell as a named spellbook entry, but only for the two whose actual sign composition is documented on the wiki (Grasping Wind, Sylph Shoes Seal). The other 38 entries were never confirmed compositionally, so there's nothing honest to match against; faking that would be worse than not detecting them.
 - `js/data/sigils.js`: the 8 elements (fire, water, earth, light, wind, wind underfoot, aeriforms, crystal).
 - `js/data/signs.js`: the 24 sign archetypes, matching the named signs documented on the wiki. Each one has a `contribute(accumulator, instance)` function describing how it affects direction, spread, sustain, or raw intensity. Where the wiki doesn't document a sign's function (Bird, Eye, Vision, Dancing Puppet, Window), the comment says so, it's a placeholder grouped by feel, not a sourced fact.
 - `js/data/spellbook.js`: 40 named canon spells for the reference gallery. Descriptions are only included where the wiki documents what the spell actually does; the rest show image and name only rather than a guessed description.

@@ -41,6 +41,7 @@
 
   function recompute() {
     const result = composeSpell(state);
+    result.match = matchSpell(state);
     renderReadout(result);
     render();
     return result;
@@ -277,7 +278,7 @@
   // ---- Readout ----
   const readoutEl = document.getElementById("readout");
   function renderReadout(result) {
-    const { params, warnings, label, ok } = result;
+    const { params, warnings, label, ok, match } = result;
     const dirText = params.hasDirection
       ? `${Vector.compassLabel(params.direction)} (${Math.round(Vector.toBearing(params.direction))}°)`
       : "none";
@@ -291,6 +292,7 @@
         <dt>Intensity</dt><dd>${params.intensity.toFixed(2)}</dd>
       </dl>
       <p class="effect-label">${label}</p>
+      ${match ? `<p class="spell-match">Matches a known spell: ${match}</p>` : ""}
       ${warnings.length ? `<ul class="warnings">${warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : ""}
       <p class="status ${ok ? "ok" : "warn"}">${ok ? "stable" : "unstable"}</p>
     `;

@@ -163,11 +163,13 @@ h2:first-child {
 }
 
 .shape-guide-name {
+  display: block;
   font-family: var(--font-mono);
   font-weight: 500;
 }
 
 .shape-guide-hint {
+  display: block;
   color: var(--ink-soft);
 }
 
@@ -339,6 +341,15 @@ h2:first-child {
   margin: 1rem 0 0;
   padding-top: 0.75rem;
   border-top: 1px solid var(--line);
+}
+
+.spell-match {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink);
+  border-left: 3px solid var(--ink);
+  padding: 0.4rem 0.75rem;
+  margin: 0.75rem 0 0;
 }
 
 .warnings {
