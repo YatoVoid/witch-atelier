@@ -51,6 +51,10 @@ This is the part meant to grow as more of the source material's rules get pinned
 - **New sign archetype**: add an entry to `SIGN_ARCHETYPES` in `js/data/signs.js` with a `contribute()` function and image path, and add it to the right family (or a new one) in `SIGN_BUCKETS` in `js/engine/classify.js`.
 - **New spellbook entry**: add a row to `SPELLBOOK` in `js/data/spellbook.js` with an image path, and a `description` only if the wiki actually documents what it does.
 
+## Testing the recognition engine
+
+`test/run.js` is a plain Node script, no dependencies, no build step: it loads `classify.js`, `signatures.js`, and the rest of the engine the same way `index.html` does (as sequential globals) and drives them with synthetic stroke geometry instead of a real pointer. It checks every sign family at several ring positions and orientations, since more than one past bug was position- or orientation-specific, plus every entry in `SPELL_SIGNATURES` against its exact recipe and a handful of near-miss recipes that should be rejected. Run it with `node test/run.js`.
+
 ## Deploying to GitHub Pages
 
 1. `git init`, commit, push to a GitHub repo.

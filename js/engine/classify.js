@@ -37,8 +37,21 @@ function resample(points, count) {
   return out;
 }
 
+// Angle from the ring's exact center is a genuinely poor signal for a
+// point that close to it: two points just a little to either side of
+// center read as ~180 degrees apart even along a dead-straight line, and
+// a small wiggle sign drawn near center can subtend just as wide an angle
+// as an actual sweep around the ring, purely from proximity to the origin
+// rather than any real spread. Points this close in don't say anything
+// reliable about spread, so they're left out of the measurement. Sized
+// well under the ring radius so it doesn't touch real wide-sweep signs,
+// which are drawn out where the ring actually is.
+const SPREAD_DEAD_ZONE = 40;
+
 function angularSpread(points) {
-  const angles = points.map((p) => Math.atan2(p.y, p.x)).sort((a, b) => a - b);
+  const usable = points.filter((p) => Math.hypot(p.x, p.y) > SPREAD_DEAD_ZONE);
+  if (usable.length < 2) return 0;
+  const angles = usable.map((p) => Math.atan2(p.y, p.x)).sort((a, b) => a - b);
   let maxGap = 0;
   for (let i = 0; i < angles.length; i++) {
     const next = i + 1 < angles.length ? angles[i + 1] : angles[0] + Math.PI * 2;
@@ -227,9 +240,17 @@ function classifyStrokeGroup(paths) {
   const wobble = maxDeviationRatio(points);
   const radialDelta = Math.hypot(end.x, end.y) - Math.hypot(start.x, start.y);
 
+  // A straight line has to be ruled out before checking angular spread,
+  // not after: a straight stroke that happens to pass close to the ring's
+  // center genuinely subtends a wide angle from that center (a point just
+  // north of center and one just south of it are ~180 degrees apart) even
+  // though it's clearly one straight line, not a sweep around the ring.
+  // Being straight (low wobble) is a more fundamental signal than where
+  // its chord sits relative to center, so it takes priority.
+  if (wobble < 0.25) return radialDelta >= 0 ? "column" : "pull";
+
   const allPoints = valid.flatMap((p) => p);
   const spread = angularSpread(allPoints);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  if (wobble < 0.25) return radialDelta >= 0 ? "column" : "pull";
   return "levitation";
 }
