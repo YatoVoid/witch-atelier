@@ -63,16 +63,20 @@ function resample(points, count) {
 
 // Angle from the ring's exact center is a genuinely poor signal for a
 // point that close to it: two points just a little to either side of
-// center read as ~180 degrees apart even along a dead-straight line, and
-// any small sign (a peak, a zigzag, not just a straight line) drawn near
-// center can subtend just as wide an angle as an actual sweep around the
-// ring, purely from proximity to the origin rather than any real spread.
-// Now that spread is checked before shape matching (so a decorated
-// straight line isn't mistaken for a sweep), this has to be generous
-// enough to fully exclude a whole small sign drawn near center, not just
-// individual noisy points, while staying well under where a real
-// wide-sweep sign is actually drawn.
-const SPREAD_DEAD_ZONE = 60;
+// center read as ~180 degrees apart even along a dead-straight line,
+// purely from proximity to the origin rather than any real spread.
+// Sized small on purpose: spread is now only ever consulted when the
+// shape doesn't already confidently match straight/bend/bolt/wavy (see
+// the confident-match check below), so it no longer has to be large
+// enough to single-handedly rule out a whole peak or zigzag drawn near
+// center the way it once did. A large dead zone caused its own real bug:
+// a genuinely small Dispersion/Convergence arc, radius comfortably under
+// the old 60px, drawn anywhere near center (a small sign can easily land
+// there) had every one of its points excluded, so it could never read as
+// a wide sweep at all, no matter how it was drawn. Kept only large enough
+// to blot out points sitting almost exactly on the origin, which really
+// don't carry a reliable angle.
+const SPREAD_DEAD_ZONE = 20;
 
 function angularSpread(points) {
   const usable = points.filter((p) => Math.hypot(p.x, p.y) > SPREAD_DEAD_ZONE);
@@ -303,7 +307,16 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // sharp-cornered outline (Diamond) would otherwise look identical to a
   // zigzag or a chaotic scribble to the shape matcher below.
   const overallSpine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
-  const spinePoints = resample(overallSpine, 20);
+  // A fixed sample count regardless of size meant a small closed shape got
+  // sampled at much tighter spacing (proportionally) than a large one,
+  // making a few px of hand tremor a far bigger fraction of the gap
+  // between samples: a small clean Diamond's corners started reading as
+  // chaotic noise (misread as Crush) well before a large one's did.
+  // Scaling the count with the shape's own perimeter, the same idea
+  // splitAtCorners already uses, keeps the noise-to-spacing ratio roughly
+  // constant across sizes instead of penalizing small ones specifically.
+  const closedSampleCount = Math.max(10, Math.min(20, Math.round(strokeLength(overallSpine) / 8)));
+  const spinePoints = resample(overallSpine, closedSampleCount);
   const spineStart = spinePoints[0];
   const spineEnd = spinePoints[spinePoints.length - 1];
   const spineChord = Math.hypot(spineEnd.x - spineStart.x, spineEnd.y - spineStart.y);

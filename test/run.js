@@ -36,10 +36,11 @@ for (const f of files) {
 vm.runInContext(
   "this.classifyStrokeGroup = classifyStrokeGroup; this.matchSpell = matchSpell; " +
     "this.familyKeyOf = familyKeyOf; this.bucketCandidates = bucketCandidates; " +
+    "this.composeSpell = composeSpell; " +
     "this.SPELL_SIGNATURES = SPELL_SIGNATURES; this.SIGN_ARCHETYPES = SIGN_ARCHETYPES;",
   sandbox
 );
-const { classifyStrokeGroup, matchSpell, familyKeyOf, bucketCandidates, SPELL_SIGNATURES, SIGN_ARCHETYPES } = sandbox;
+const { classifyStrokeGroup, matchSpell, familyKeyOf, bucketCandidates, composeSpell, SPELL_SIGNATURES, SIGN_ARCHETYPES } = sandbox;
 
 let pass = 0;
 let fail = 0;
@@ -372,6 +373,31 @@ checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
+// A wide sweep and a Diamond both drawn small enough to land close to
+// ring center used to break in opposite-but-related ways: a small sweep
+// had every one of its points inside SPREAD_DEAD_ZONE (fixed by shrinking
+// that zone from 60px to 20px), and a small Diamond got its corners
+// sampled at the same fixed 20-point spacing as a large one, so the same
+// few px of tremor covered a much bigger share of the gap between
+// samples and started reading as chaotic (fixed by scaling the sample
+// count with the shape's own perimeter). Both fixes checked at a size
+// well below what used to fail.
+checkJitterRobust("wideOut (dispersion), drawn small", () => arcSweep(25, -70, 70, true), "dispersion");
+checkJitterRobust("wideIn (convergence), drawn small", () => arcSweep(25, -70, 70, false), "convergence");
+checkJitterRobust("closedSmooth (diamond), drawn small", () => realDiamond(150, 0, 50), "diamond");
+// A Diamond drawn genuinely tiny (under ~25px radius, so under 50px
+// across) is not reliably recoverable at plausible hand tremor: a few px
+// of jitter is 15-40% of the shape's own size at that point, big enough
+// to fake or hide a corner outright, not just blur one, and below ~22px
+// radius it misreads as Crush every single time, not just often. Tried
+// scaling the resample count down further and a light smoothing pass on
+// top of it; neither closed the gap without also making Crush detection
+// worse at normal sizes, so this is tracked as a real, accepted floor
+// rather than silently left unmeasured. Bar set low, matching the actual
+// rate at this size, so this exists to catch a regression to "even worse
+// than today," not to demand the floor keep moving.
+checkJitterRobust("closedSmooth (diamond), drawn tiny (known limitation, low bar)", () => realDiamond(150, 0, 25), "diamond", 0.3);
+
 // ---- 5. real hand-drawn examples that came back misclassified in
 // practice (bolt/bend for shapes a person reads as clearly directional),
 // traced from actual screenshots rather than synthesized from the family
@@ -425,6 +451,24 @@ function realSign1(ox, oy) {
 // reading the way they do at an arbitrary angle.
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
+
+// ---- 6. drawing a sign larger actually produces a noticeably stronger
+// reading, not just a quietly different number. Witch Hat Atelier's own
+// magic scales with how big a sign is drawn; a spell circle app that
+// doesn't reflect that in what the reading actually says isn't honoring
+// it, even if the underlying number technically moved. ----
+const smallColumn = composeSpell({
+  sigilId: "fire",
+  signs: [{ archetypeId: "column", angle: 0, length: 0.15, inverted: false }],
+  ringComplete: true,
+});
+const largeColumn = composeSpell({
+  sigilId: "fire",
+  signs: [{ archetypeId: "column", angle: 0, length: 1.4, inverted: false }],
+  ringComplete: true,
+});
+check("a single large sign reads as higher intensity than a small one", largeColumn.params.intensity > smallColumn.params.intensity, true);
+check("that difference actually shows up in the label text, not just the number", largeColumn.label !== smallColumn.label, true);
 
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);
