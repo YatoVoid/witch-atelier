@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atelier — Spell Circle Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Atelier</h1>
+    <p class="tagline">Draw the ring. Set the signs. Read what it does.</p>
+  </header>
+
+  <main class="workbench">
+    <section class="panel panel-tools" aria-label="Sigils and signs">
+      <div>
+        <h2>Sigil</h2>
+        <div id="sigil-palette" class="chip-row"></div>
+      </div>
+      <div>
+        <h2>Signs</h2>
+        <div id="sign-palette" class="chip-row"></div>
+        <p class="hint">Pick a sign, then tap the ring to place it.</p>
+      </div>
+      <button id="ring-toggle" class="toggle-btn">Ring open</button>
+    </section>
+
+    <section class="panel panel-circle" aria-label="Spell circle">
+      <div class="circle-frame">
+        <canvas id="circle"></canvas>
+      </div>
+      <div class="circle-actions">
+        <button id="cast-btn" class="primary-btn">Cast</button>
+      </div>
+      <div id="sign-list" class="sign-list"></div>
+    </section>
+
+    <section class="panel panel-readout" aria-label="Effect reading and grimoire">
+      <h2>Reading</h2>
+      <div id="readout" class="readout"></div>
+
+      <h2>Save to grimoire</h2>
+      <div class="save-row">
+        <input id="spell-name" type="text" placeholder="Name this spell" maxlength="40" />
+        <button id="save-btn" class="secondary-btn">Save</button>
+      </div>
+
+      <h2>Grimoire</h2>
+      <div id="grimoire-list" class="grimoire-list"></div>
+
+      <h2>Import a spell code</h2>
+      <div class="save-row">
+        <input id="import-code" type="text" placeholder="Paste a spell code" />
+        <button id="import-btn" class="secondary-btn">Load</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/data/sigils.js"></script>
+  <script src="js/data/signs.js"></script>
+  <script src="js/engine/vector.js"></script>
+  <script src="js/engine/compose.js"></script>
+  <script src="js/engine/render.js"></script>
+  <script src="js/grimoire.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
