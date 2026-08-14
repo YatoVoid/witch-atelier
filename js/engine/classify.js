@@ -130,13 +130,22 @@ function sharpTurnCount(points, angleThreshold) {
 // default. Each sign row in the UI offers the rest of its family as
 // alternatives, so the shape narrows it down and you make the final call,
 // rather than the app pretending to detect a distinction that isn't there.
+// Direction's reference glyph (assets/signs/direction.webp) is a bare "^"
+// peak, no straight spine at all, unlike Pull's own glyph (a mostly
+// straight line with a small arrowhead). It reads geometrically as a
+// single sharp corner, the same shape as Bend, not as "mostly straight",
+// so it belongs with Bend/Bolt: drawing a peak-shaped sign never used to
+// offer Direction as an option at all, since the dropdown only offers
+// alternatives within whichever family the shape actually got classified
+// into, and a peak was never going to classify as straightIn no matter
+// how the geometry was read.
 const SIGN_BUCKETS = {
   straightOut: ["column", "crosshair", "enlarge"],
-  straightIn: ["pull", "direction"],
+  straightIn: ["pull"],
   wideOut: ["dispersion", "radial", "rain", "billowing", "weave"],
   wideIn: ["convergence", "window", "collection"],
   wavy: ["levitation", "float", "bird", "dancing-puppet", "eye", "vision"],
-  zigzag: ["bolt", "bend"],
+  zigzag: ["bolt", "bend", "direction"],
   closedSmooth: ["diamond", "repetition"],
   closedChaotic: ["crush"],
 };
@@ -350,32 +359,6 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const overallEnd = averagedEndpoint(mainStroke, true);
   const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
 
-  // Wide sweeps (Dispersion/Convergence) are fundamentally about the
-  // stroke's relationship to the ring's center, not its own shape, so
-  // that's read directly off the raw geometry rather than through the
-  // rotation-normalized shape matcher below, which throws position away
-  // on purpose. Checked before shape matching for the same reason the
-  // old heuristic checked straightness before spread: a wide arc and a
-  // decorated straight line can both read as a passable "straight" shape
-  // match in isolation, but only one of them actually sweeps around the
-  // ring's center.
-  //
-  // Measured from the longest single stroke alone, not every stroke
-  // combined, same reasoning and same fix as direction and shape matching
-  // above: a wide sweep is described (and drawn) as one continuous arc,
-  // not a dominant arc plus a separate decoration, so there's no real
-  // multi-stroke case this loses. What it fixes is a straight line with a
-  // decoration landing at a noticeably different bearing from the ring's
-  // center than the main line, an arrowhead barb angled off to the side,
-  // a cap drawn slightly askew, which used to be able to drag the
-  // combined point cloud's angular spread over threshold even though the
-  // main line's own bearing barely varies, misreading a decorated Column
-  // as Dispersion (or Pull as Convergence) no matter how many times the
-  // shape itself got corrected: this check runs, and always ran, before
-  // the shape matcher (and its trainable templates) ever gets a look.
-  const spread = angularSpread(mainStroke);
-  if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-
   // Concatenating every stroke in drawing order (the only option before)
   // works when several comparably-sized strokes together form the shape
   // (a crosshair's four arms, a zigzag drawn as separate segments), but
@@ -390,6 +373,35 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // threshold and reasoning as the old dominance check this replaced.
   const shapeInput = strokeLength(mainStroke) / totalStrokeLength > 0.65 ? mainStroke : valid.flat();
   const match = matchShapeTemplate(shapeInput, extraTemplates);
+
+  // A confident shape match (a clean corner, a clean zigzag) is checked
+  // before wide sweep, not after: a peak or a zigzag genuinely can span a
+  // wide angle as seen from the ring's center once its arms are drawn
+  // long enough, the same way a straight line passing near center does,
+  // even though it's obviously not a smooth sweep around the ring. Only
+  // when the shape doesn't clearly match any single family (its distance
+  // to the closest template is still fairly large) is spread worth
+  // checking at all: a genuine arc doesn't look like a clean straight
+  // line, corner, or zigzag either, so this doesn't cost real wide-sweep
+  // signs anything. Threshold set from the actual gap measured between
+  // the two: every tested straight/bend/bolt/wavy shape, including under
+  // hand tremor, matched under 0.06; every tested wide sweep of a
+  // reasonable width matched no better than roughly that.
+  const CONFIDENT_SHAPE_MATCH = 0.06;
+  if (match.distance >= CONFIDENT_SHAPE_MATCH) {
+    // Measured from the longest single stroke alone, not every stroke
+    // combined, same reasoning as above: a wide sweep is described (and
+    // drawn) as one continuous arc, not a dominant arc plus a separate
+    // decoration, so there's no real multi-stroke case this loses. What
+    // it fixes is a straight line with a decoration landing at a
+    // noticeably different bearing from the ring's center than the main
+    // line, which used to be able to drag the combined point cloud's
+    // angular spread over threshold even though the main line's own
+    // bearing barely varies.
+    const spread = angularSpread(mainStroke);
+    if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
+  }
+
   if (match.label === "straight") return radialDelta >= 0 ? "column" : "pull";
   if (match.label === "wavy") return "levitation";
   return match.label; // "bend" or "bolt"

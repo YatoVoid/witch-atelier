@@ -35,11 +35,11 @@ for (const f of files) {
 // function declarations do that), so pull them out explicitly.
 vm.runInContext(
   "this.classifyStrokeGroup = classifyStrokeGroup; this.matchSpell = matchSpell; " +
-    "this.familyKeyOf = familyKeyOf; this.SPELL_SIGNATURES = SPELL_SIGNATURES; " +
-    "this.SIGN_ARCHETYPES = SIGN_ARCHETYPES;",
+    "this.familyKeyOf = familyKeyOf; this.bucketCandidates = bucketCandidates; " +
+    "this.SPELL_SIGNATURES = SPELL_SIGNATURES; this.SIGN_ARCHETYPES = SIGN_ARCHETYPES;",
   sandbox
 );
-const { classifyStrokeGroup, matchSpell, familyKeyOf, SPELL_SIGNATURES, SIGN_ARCHETYPES } = sandbox;
+const { classifyStrokeGroup, matchSpell, familyKeyOf, bucketCandidates, SPELL_SIGNATURES, SIGN_ARCHETYPES } = sandbox;
 
 let pass = 0;
 let fail = 0;
@@ -77,8 +77,8 @@ function corner(x0, y0, xa, ya, x1, y1) {
 // (not rotated to the local radial direction): translating only, like a
 // real hand-drawn sign, avoids degenerate collinear points that a
 // direction-dependent construction can produce at some ring angles.
-function peakAt(ox, oy) {
-  const local = corner(-35, 35, 0, -35, 35, 35);
+function peakAt(ox, oy, arm = 35) {
+  const local = corner(-arm, arm, 0, -arm, arm, arm);
   return local.map((p) => ({ x: p.x + ox, y: p.y + oy }));
 }
 
@@ -200,6 +200,28 @@ function arcSweep(radius, startDeg, endDeg, outward) {
 }
 check("wideOut (dispersion)", classifyStrokeGroup([arcSweep(90, -70, 70, true)]), "dispersion");
 check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]), "convergence");
+
+// A peak's own arms subtend a genuinely wide angle from the ring center
+// once they're drawn long enough, the same way a straight line passing
+// near center does, without being any less clearly a single sharp
+// corner. Confident shape matches are checked before angular spread for
+// exactly this: a wide-armed Bend used to misread as Dispersion once its
+// arms were long enough to push spread over threshold, unfixable by any
+// amount of correcting the family, since that branch returned before the
+// shape matcher (and any trained correction) ever ran.
+for (const arm of [35, 70, 100]) {
+  check(`wide-armed bend (arm=${arm}) is not mistaken for a sweep`, classifyStrokeGroup([peakAt(150, 0, arm)]), "bend");
+}
+
+// Direction's own reference glyph is a bare peak, no straight spine,
+// unlike Pull's (a mostly straight line with a small arrowhead), so it
+// has to be reachable via the same family a peak actually classifies
+// into (zigzag, with Bend/Bolt), not straightIn (with Pull): a peak was
+// never going to read as straightIn no matter how the geometry was
+// tuned, which meant Direction could never appear as a dropdown option
+// for the shape that's supposed to produce it.
+check("Direction is reachable from a peak's own family", bucketCandidates("bend").includes("direction"), true);
+check("Direction is not still listed under Pull's family", bucketCandidates("pull").includes("direction"), false);
 
 // A T-shape (spine + short tick) must NOT be misread as bend: the spine
 // should dominate. Drawn radially (pointing away from ring center, like a
