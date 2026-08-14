@@ -1,7 +1,7 @@
 // Sign archetypes. A placed instance is {archetypeId, angle, length, path, inverted}.
 // angle: radians, where the stroke sits relative to the ring's center
 // length: arc length of the drawn stroke, normalized to the ring radius
-// path: the raw points the user drew, kept for rendering — not reinterpreted
+// path: the raw points the user drew, kept for rendering, not reinterpreted
 // inverted: for "column", whether the stroke was drawn inward instead of outward
 //
 // contribute(acc, instance) mutates a shared accumulator that compose.js reduces

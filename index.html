@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Atelier — Spell Circle Workbench</title>
+  <title>Atelier</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -15,7 +15,7 @@
 <body>
   <header class="site-header">
     <h1>Atelier</h1>
-    <p class="tagline">Draw the ring. Set the signs. Read what it does.</p>
+    <p class="tagline">Draw the signs. Read what they do.</p>
   </header>
 
   <main class="workbench">
@@ -25,9 +25,9 @@
         <div id="sigil-palette" class="chip-row"></div>
       </div>
       <div>
-        <h2>Signs</h2>
-        <div id="sign-palette" class="chip-row"></div>
-        <p class="hint">Pick a sign, then draw it anywhere on the circle. Draw outward for push, inward for pull.</p>
+        <h2>Shape guide</h2>
+        <div id="sign-palette" class="shape-guide"></div>
+        <p class="hint">Nothing to pick here. Draw a stroke anywhere on the circle and its shape decides what it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes.</p>
       </div>
       <button id="ring-toggle" class="toggle-btn">Ring open</button>
     </section>
@@ -39,6 +39,7 @@
       <div class="circle-actions">
         <button id="cast-btn" class="primary-btn">Cast</button>
       </div>
+      <p id="last-drawn" class="last-drawn"></p>
       <div id="sign-list" class="sign-list"></div>
     </section>
 
@@ -67,6 +68,7 @@
   <script src="js/data/signs.js"></script>
   <script src="js/engine/constants.js"></script>
   <script src="js/engine/vector.js"></script>
+  <script src="js/engine/classify.js"></script>
   <script src="js/engine/compose.js"></script>
   <script src="js/engine/render.js"></script>
   <script src="js/grimoire.js"></script>

@@ -124,6 +124,37 @@ h2:first-child {
   margin: 0.25rem 0 0;
 }
 
+.shape-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.shape-guide-row {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.shape-guide-name {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.shape-guide-hint {
+  color: var(--ink-soft);
+}
+
+.last-drawn {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+  margin: 0;
+}
+
 .toggle-btn {
   width: 100%;
   margin-top: 1.5rem;

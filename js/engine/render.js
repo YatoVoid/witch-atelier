@@ -1,5 +1,5 @@
 // Canvas rendering. Signs are drawn from the actual points the user's stroke
-// recorded — nothing synthetic — smoothed with a standard quadratic-through-
+// recorded, nothing synthetic, smoothed with a standard quadratic-through-
 // midpoints pass and a soft shadow for ink bleed instead of faking texture
 // with random jitter.
 function strokePath(ctx, points, width) {
@@ -65,15 +65,20 @@ const SIGIL_PATHS = {
       { x: s * 0.3, y: i * s * 0.5 - s * 0.4 },
       { x: s, y: i * s * 0.5 },
     ]),
-  wind: (s) => {
-    const pts = [];
-    for (let t = 0; t <= 1; t += 0.05) {
-      const a = t * Math.PI * 3;
-      const rad = s * t;
-      pts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
-    }
-    return [pts];
-  },
+  // Three-bladed whorl. The wiki describes the air sigil as three-sided,
+  // distinct from the other air-family sigils, with a noted resemblance to
+  // the fire sigil's three spokes. This is an original shape built from
+  // that description, not a trace of any published artwork.
+  air: (s) =>
+    [0, 1, 2].map((i) => {
+      const a = (Math.PI * 2 * i) / 3 - Math.PI / 2;
+      const perp = a + Math.PI / 2;
+      return [
+        { x: 0, y: 0 },
+        { x: Math.cos(a) * s * 0.45 + Math.cos(perp) * s * 0.25, y: Math.sin(a) * s * 0.45 + Math.sin(perp) * s * 0.25 },
+        { x: Math.cos(a) * s, y: Math.sin(a) * s },
+      ];
+    }),
   earth: (s) => [
     [
       { x: 0, y: -s },

@@ -1,12 +1,12 @@
-// Resolves a placed sigil + signs into effect parameters. Pure function,
-// no rendering or storage here — this is the part that has to be honest.
+// Resolves a placed sigil + signs into effect parameters. Pure function.
+// No rendering or storage here, this is the part that has to be honest.
 const EPSILON = 1e-6;
 
 function composeSpell({ sigilId, signs, ringComplete }) {
   const warnings = [];
   const sigil = getSigil(sigilId);
   if (!sigil) warnings.push("No sigil chosen.");
-  if (!ringComplete) warnings.push("Ring is open — spell won't activate.");
+  if (!ringComplete) warnings.push("Ring is open, spell won't activate.");
 
   const acc = {
     forceX: 0,
@@ -44,9 +44,9 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const columnsCancel = acc.directional > EPSILON && magnitude < instabilityThreshold;
 
   if (signs.length === 0) {
-    warnings.push("No signs placed — effect will be weak.");
+    warnings.push("No signs placed, effect will be weak.");
   } else if (columnsCancel) {
-    warnings.push("Directional signs cancel out — net force near zero, likely misfires.");
+    warnings.push("Directional signs cancel out, net force near zero, likely misfires.");
   }
 
   const params = {
@@ -69,11 +69,11 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   };
 }
 
-// Plain, factual description — no narrative flourish. Same params every
-// sigil × sign combination produces, so nothing here is hardcoded per-combo.
+// Plain, factual description, no narrative flourish. Same params every
+// sigil x sign combination produces, so nothing here is hardcoded per combo.
 function buildLabel(sigil, params, columnsCancel) {
   if (!sigil) return "no element chosen";
-  if (columnsCancel) return `${sigil.name.toLowerCase()}, no net direction — signs cancel out`;
+  if (columnsCancel) return `${sigil.name.toLowerCase()}, no net direction, signs cancel out`;
 
   const parts = [sigil.name.toLowerCase()];
   parts.push(params.hasDirection ? `${Vector.compassLabel(params.direction)} direction` : "no directional bias");

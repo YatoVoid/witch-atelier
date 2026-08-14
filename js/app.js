@@ -11,7 +11,6 @@
     livePath: null,
   };
 
-  let activeTool = null; // archetype id being drawn, or null
   let drawing = false;
   let rawPoints = []; // client-space points for the in-progress stroke
 
@@ -74,26 +73,25 @@
     sigilPalette.appendChild(btn);
   });
 
-  // ---- Palette: signs ----
+  // ---- Sign shape guide (reference only, drawing is what selects the archetype) ----
   const signPalette = document.getElementById("sign-palette");
   SIGN_ARCHETYPES.forEach((archetype) => {
-    const btn = document.createElement("button");
-    btn.className = "chip";
-    btn.textContent = archetype.name;
-    btn.title = archetype.short;
-    btn.dataset.archetype = archetype.id;
-    btn.addEventListener("click", () => {
-      activeTool = activeTool === archetype.id ? null : archetype.id;
-      [...signPalette.children].forEach((c) => c.classList.remove("active"));
-      if (activeTool) btn.classList.add("active");
-      canvas.classList.toggle("placing", !!activeTool);
-    });
-    signPalette.appendChild(btn);
+    const row = document.createElement("div");
+    row.className = "shape-guide-row";
+    const name = document.createElement("span");
+    name.className = "shape-guide-name";
+    name.textContent = archetype.name;
+    const hint = document.createElement("span");
+    hint.className = "shape-guide-hint";
+    hint.textContent = archetype.short;
+    row.append(name, hint);
+    signPalette.appendChild(row);
   });
 
-  // ---- Freehand stroke capture: draw anywhere, any angle, any length ----
+  // ---- Freehand stroke capture: draw anywhere, any shape, any length ----
+  // No archetype is picked beforehand. The shape you draw is classified after
+  // the stroke ends, in engine/classify.js.
   canvas.addEventListener("pointerdown", (e) => {
-    if (!activeTool) return;
     drawing = true;
     canvas.setPointerCapture(e.pointerId);
     rawPoints = [toLocal(e.clientX, e.clientY)];
@@ -111,16 +109,20 @@
     render();
   });
 
+  const lastDrawnEl = document.getElementById("last-drawn");
+
   function finishStroke() {
     if (!drawing) return;
     drawing = false;
     state.livePath = null;
-    if (rawPoints.length < 2) {
+    if (rawPoints.length < 2 || pathLength(rawPoints) < 8) {
+      // too short to be a deliberate stroke, discard rather than guess
       rawPoints = [];
       render();
       return;
     }
 
+    const archetypeId = classifyStroke(rawPoints);
     const start = rawPoints[0];
     const end = rawPoints[rawPoints.length - 1];
     const angle = Vector.angle(end.x, end.y);
@@ -130,13 +132,15 @@
     const inverted = distFromCenterEnd < distFromCenterStart; // drawn inward = pull
 
     state.signs.push({
-      archetypeId: activeTool,
+      archetypeId,
       angle,
       length,
       inverted,
       path: rawPoints.slice(),
     });
     rawPoints = [];
+    const archetype = getArchetype(archetypeId);
+    lastDrawnEl.textContent = `Read as: ${archetype.name} (${archetype.short})`;
     renderSignList();
     recompute();
   }
@@ -160,7 +164,7 @@
     if (state.signs.length === 0) {
       const empty = document.createElement("p");
       empty.className = "muted";
-      empty.textContent = "No signs drawn yet. Pick one above, then draw on the ring.";
+      empty.textContent = "No signs drawn yet. Draw a stroke anywhere on the circle.";
       signList.appendChild(empty);
       return;
     }
@@ -171,8 +175,10 @@
 
       const label = document.createElement("span");
       label.className = "sign-row-label";
-      const orientation = instance.archetypeId === "column" ? (instance.inverted ? " · pull" : " · push") : "";
-      label.textContent = `${archetype.name} · ${Math.round(Vector.toDegrees(instance.angle))}°${orientation}`;
+      let orientation = "";
+      if (instance.archetypeId === "column") orientation = instance.inverted ? " · pull" : " · push";
+      if (instance.archetypeId === "pulling") orientation = " · pull";
+      label.textContent = `${archetype.name} · ${Math.round(Vector.toBearing(instance.angle))}°${orientation}`;
       row.appendChild(label);
 
       const slider = document.createElement("input");
@@ -206,7 +212,7 @@
   function renderReadout(result) {
     const { params, warnings, label, ok } = result;
     const dirText = params.hasDirection
-      ? `${Vector.compassLabel(params.direction)} (${Math.round(Vector.toDegrees(params.direction))}°)`
+      ? `${Vector.compassLabel(params.direction)} (${Math.round(Vector.toBearing(params.direction))}°)`
       : "none";
     readoutEl.innerHTML = `
       <dl>
