@@ -421,28 +421,80 @@
   });
 
   // ---- Spellbook gallery ----
+  // Recognized spells (those with a SPELL_SIGNATURES entry) sort first so
+  // what the app can actually detect from a drawn ring isn't buried among
+  // the rest, which are image-and-name reference only.
   const spellbookEl = document.getElementById("spellbook");
-  SPELLBOOK.forEach((spell) => {
-    const card = document.createElement("figure");
-    card.className = "spellbook-card";
-    const img = document.createElement("img");
-    img.src = spell.image;
-    img.alt = spell.name;
-    img.loading = "lazy";
-    const caption = document.createElement("figcaption");
-    const title = document.createElement("span");
-    title.className = "spellbook-title";
-    title.textContent = spell.name;
-    caption.appendChild(title);
-    if (spell.description) {
-      const desc = document.createElement("span");
-      desc.className = "spellbook-desc";
-      desc.textContent = spell.description;
-      caption.appendChild(desc);
-    }
-    card.append(img, caption);
-    spellbookEl.appendChild(card);
+  const spellbookCountEl = document.getElementById("spellbook-count");
+  const spellbookSearchEl = document.getElementById("spellbook-search");
+  const spellbookRecognizedToggle = document.getElementById("spellbook-recognized-toggle");
+  const recognizedNames = new Set(SPELL_SIGNATURES.map((s) => s.name));
+  const sortedSpellbook = SPELLBOOK.slice().sort((a, b) => {
+    const ra = recognizedNames.has(a.name) ? 0 : 1;
+    const rb = recognizedNames.has(b.name) ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
   });
+
+  spellbookCountEl.textContent = `${recognizedNames.size} of ${SPELLBOOK.length} spells below can be recognized from what you draw. Look for the Recognized badge.`;
+
+  let recognizedOnly = false;
+
+  function renderSpellbook() {
+    const query = spellbookSearchEl.value.trim().toLowerCase();
+    spellbookEl.innerHTML = "";
+    sortedSpellbook.forEach((spell) => {
+      const isRecognized = recognizedNames.has(spell.name);
+      if (recognizedOnly && !isRecognized) return;
+      if (query && !spell.name.toLowerCase().includes(query)) return;
+
+      const card = document.createElement("figure");
+      card.className = "spellbook-card";
+      const img = document.createElement("img");
+      img.src = spell.image;
+      img.alt = spell.name;
+      img.loading = "lazy";
+      const caption = document.createElement("figcaption");
+      const titleRow = document.createElement("div");
+      titleRow.className = "spellbook-title-row";
+      const title = document.createElement("span");
+      title.className = "spellbook-title";
+      title.textContent = spell.name;
+      titleRow.appendChild(title);
+      if (isRecognized) {
+        const badge = document.createElement("span");
+        badge.className = "recognized-badge";
+        badge.textContent = "Recognized";
+        titleRow.appendChild(badge);
+      }
+      caption.appendChild(titleRow);
+      if (spell.description) {
+        const desc = document.createElement("span");
+        desc.className = "spellbook-desc";
+        desc.textContent = spell.description;
+        caption.appendChild(desc);
+      }
+      card.append(img, caption);
+      spellbookEl.appendChild(card);
+    });
+
+    if (!spellbookEl.children.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "No spells match.";
+      spellbookEl.appendChild(empty);
+    }
+  }
+
+  spellbookSearchEl.addEventListener("input", renderSpellbook);
+  spellbookRecognizedToggle.addEventListener("click", () => {
+    recognizedOnly = !recognizedOnly;
+    spellbookRecognizedToggle.classList.toggle("active", recognizedOnly);
+    spellbookRecognizedToggle.setAttribute("aria-pressed", String(recognizedOnly));
+    renderSpellbook();
+  });
+
+  renderSpellbook();
 
   // ---- init ----
   renderSignList();

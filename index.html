@@ -18,59 +18,73 @@
     <p class="tagline">Draw the signs. Read what they do.</p>
   </header>
 
-  <main class="workbench">
-    <section class="panel panel-tools" aria-label="Sigils and signs">
-      <div>
-        <h2>Sigil</h2>
-        <div id="sigil-palette" class="chip-row"></div>
-      </div>
-      <div>
-        <h2>Shape guide</h2>
-        <div id="sign-palette" class="shape-guide"></div>
-        <p class="hint">Nothing to pick here. Draw a stroke anywhere on the circle and its shape decides what it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes. A pause of under a second lets you add more strokes to the same sign before it locks in, since most of these are drawn from a few parts, not one line.</p>
-      </div>
-    </section>
+  <div class="workbench-wrap">
+    <nav class="mobile-tabs" aria-label="Workbench section">
+      <button type="button" class="mobile-tab active" data-tab-target="circle" aria-selected="true">Circle</button>
+      <button type="button" class="mobile-tab" data-tab-target="tools" aria-selected="false">Sigils &amp; Signs</button>
+      <button type="button" class="mobile-tab" data-tab-target="readout" aria-selected="false">Reading &amp; Grimoire</button>
+    </nav>
 
-    <section class="panel panel-circle" aria-label="Spell circle">
-      <div class="circle-frame">
-        <canvas id="circle"></canvas>
-      </div>
-      <div class="circle-actions">
-        <button id="cast-btn" class="primary-btn">Cast</button>
-        <button id="ring-toggle" class="toggle-btn">Ring open</button>
-        <button id="clear-btn" class="toggle-btn">Clear</button>
-      </div>
-      <p id="last-drawn" class="last-drawn"></p>
-      <div id="sign-list" class="sign-list"></div>
-    </section>
+    <main class="workbench">
+      <section class="panel panel-tools" data-tab-panel="tools" aria-label="Sigils and signs">
+        <div>
+          <h2>Sigil</h2>
+          <div id="sigil-palette" class="chip-row"></div>
+        </div>
+        <div>
+          <h2>Shape guide</h2>
+          <div id="sign-palette" class="shape-guide"></div>
+          <p class="hint">Nothing to pick here. Draw a stroke anywhere on the circle and its shape decides what it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes. A pause of under a second lets you add more strokes to the same sign before it locks in, since most of these are drawn from a few parts, not one line.</p>
+        </div>
+      </section>
 
-    <section class="panel panel-readout" aria-label="Effect reading and grimoire">
-      <h2>Reading</h2>
-      <div id="readout" class="readout"></div>
+      <section class="panel panel-circle" data-tab-panel="circle" aria-label="Spell circle">
+        <div class="circle-frame">
+          <canvas id="circle"></canvas>
+        </div>
+        <div class="circle-actions">
+          <button id="cast-btn" class="primary-btn">Cast</button>
+          <button id="ring-toggle" class="toggle-btn">Ring open</button>
+          <button id="clear-btn" class="toggle-btn">Clear</button>
+        </div>
+        <p id="last-drawn" class="last-drawn"></p>
+        <div id="sign-list" class="sign-list"></div>
+      </section>
 
-      <h2>Save to grimoire</h2>
-      <div class="save-row">
-        <input id="spell-name" type="text" placeholder="Name this spell" maxlength="40" />
-        <button id="save-btn" class="secondary-btn">Save</button>
-      </div>
+      <section class="panel panel-readout" data-tab-panel="readout" aria-label="Effect reading and grimoire">
+        <h2>Reading</h2>
+        <div id="readout" class="readout"></div>
 
-      <h2>Grimoire</h2>
-      <div id="grimoire-list" class="grimoire-list"></div>
+        <h2>Save to grimoire</h2>
+        <div class="save-row">
+          <input id="spell-name" type="text" placeholder="Name this spell" maxlength="40" />
+          <button id="save-btn" class="secondary-btn">Save</button>
+        </div>
 
-      <h2>Import a spell code</h2>
-      <div class="save-row">
-        <input id="import-code" type="text" placeholder="Paste a spell code" />
-        <button id="import-btn" class="secondary-btn">Load</button>
-      </div>
-    </section>
-  </main>
+        <h2>Grimoire</h2>
+        <div id="grimoire-list" class="grimoire-list"></div>
+
+        <h2>Import a spell code</h2>
+        <div class="save-row">
+          <input id="import-code" type="text" placeholder="Paste a spell code" />
+          <button id="import-btn" class="secondary-btn">Load</button>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <section class="spellbook-section" aria-label="Spellbook">
     <h2>Spellbook</h2>
     <p class="hint">Named spells from the source material, hand-drawn. Descriptions are shown only where the wiki documents what the spell actually does; the rest are image and name only.</p>
+    <p id="spellbook-count" class="hint"></p>
+    <div class="spellbook-controls">
+      <input id="spellbook-search" type="search" placeholder="Search spells" aria-label="Search spellbook" />
+      <button id="spellbook-recognized-toggle" type="button" class="toggle-btn" aria-pressed="false">Recognized only</button>
+    </div>
     <div id="spellbook" class="spellbook-grid"></div>
   </section>
 
+  <script src="js/ui.js"></script>
   <script src="js/data/sigils.js"></script>
   <script src="js/data/signs.js"></script>
   <script src="js/data/spellbook.js"></script>

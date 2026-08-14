@@ -76,10 +76,99 @@ h2:first-child {
   padding: 1rem 1.5rem 3rem;
 }
 
+/* Below 900px the three panels are tabbed (js/ui.js) instead of stacked,
+   so getting from drawing to the readout doesn't mean scrolling past a
+   full panel of sigil/sign chips first. */
+.mobile-tabs {
+  display: flex;
+  gap: 0.4rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  z-index: 20;
+}
+
+.mobile-tab {
+  flex: 1;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  padding: 0.5rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mobile-tab.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--wash);
+}
+
 @media (min-width: 900px) {
+  .mobile-tabs {
+    display: none;
+  }
   .workbench {
     grid-template-columns: 280px minmax(320px, 1fr) 340px;
     align-items: start;
+  }
+  /* [hidden] only encodes the active mobile tab; desktop shows all three. */
+  .panel[hidden] {
+    display: block !important;
+  }
+  .panel-circle[hidden] {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 899.98px) {
+  /* Keep Cast/Ring/Clear reachable without scrolling past the sign list
+     while the Circle tab is open. */
+  .circle-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper-raised);
+    margin: 0 -1.25rem -1.25rem;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--line);
+    z-index: 5;
+  }
+
+  .chip,
+  .toggle-btn,
+  .primary-btn,
+  .secondary-btn,
+  .sign-row-select {
+    min-height: 44px;
+  }
+
+  .mini-btn {
+    min-height: 36px;
+    padding: 0.4rem 0.7rem;
+  }
+
+  .circle-actions {
+    gap: 1rem;
+  }
+
+  .sign-row {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+    column-gap: 0.6rem;
+  }
+
+  .sign-row input[type="range"] {
+    flex: 1 1 100%;
+    order: 5;
   }
 }
 
@@ -191,6 +280,11 @@ h2:first-child {
   padding: 0.6rem;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.toggle-btn:hover {
+  border-style: solid;
+  color: var(--ink);
 }
 
 .toggle-btn.active {
@@ -323,10 +417,19 @@ h2:first-child {
   cursor: pointer;
 }
 
+.mini-btn:not(.danger):hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
 .mini-btn.danger:hover {
   border-color: var(--ink);
   color: var(--ink);
   text-decoration: line-through;
+}
+
+.secondary-btn:hover {
+  background: var(--wash);
 }
 
 .muted {
@@ -441,11 +544,50 @@ h2:first-child {
   padding: 0 1.5rem 3rem;
 }
 
+.spellbook-controls {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  gap: 0.6rem;
+  background: var(--paper);
+  padding: 0.6rem 0;
+  margin-top: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.spellbook-controls input[type="search"] {
+  flex: 1;
+  min-height: 44px;
+  font-family: var(--font-body);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.spellbook-controls .toggle-btn {
+  flex-shrink: 0;
+}
+
 .spellbook-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
+}
+
+@media (max-width: 480px) {
+  .spellbook-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 481px) and (max-width: 899.98px) {
+  .spellbook-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
 }
 
 .spellbook-card {
@@ -465,10 +607,29 @@ h2:first-child {
   object-fit: contain;
 }
 
+.spellbook-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .spellbook-title {
   display: block;
   font-family: var(--font-display);
   font-size: 0.9rem;
+}
+
+.recognized-badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .spellbook-desc {
