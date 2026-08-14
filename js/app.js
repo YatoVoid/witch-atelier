@@ -12,29 +12,38 @@
     groupPaths: [],
   };
 
-  // Every family classifyStrokeGroup() can return, for the "wrong
-  // reading?" correction panel. Four (straight/bend/bolt/wavy) go through
+  // Every archetype the "wrong reading?" correction panel can set a sign
+  // to. Straight and Wide Sweep are shape-symmetric (Column and Pull are
+  // the exact same shape, only direction tells them apart, same for
+  // Dispersion/Convergence), so each gets its own explicit option rather
+  // than one "Straight" button that only re-derives direction from
+  // whatever instance.inverted already was — which is exactly why a
+  // Column that got misread as Pull used to be uncorrectable here: the
+  // shape reading was already right, only the direction was wrong, and
+  // nothing let you flip just that. `inverted` gets set alongside
+  // archetypeId for these four so compose.js's force direction (Column's
+  // contribute() in signs.js reads it directly) matches what the label
+  // now says, not just the label.
+  //
+  // trainLabel/trainable: Straight, Wavy, Bend, and Bolt go through
   // classify.js's point-cloud shape matcher (js/data/templates.js) and
-  // can be trained: picking one saves the drawn stroke as a personal
-  // example, so a similar shape reads right next time (see
-  // js/training.js). The other three (wideSweep/diamond/crush) are read
-  // straight off the ring-relative geometry (how wide an arc the stroke
-  // sweeps around the ring center, whether it closes into a loop) rather
-  // than shape-matched, so there's nothing to save an example of; picking
-  // one only corrects this sign, `trainable: false` says so in the UI
-  // rather than implying a memory that isn't there. archetypeId is only
-  // the default for bend/bolt/wavy/wideSweep/diamond/crush; "straight"
-  // resolves to column or pull depending on which way the stroke was
-  // actually drawn (see the click handler below), so its entry here is
-  // unused but kept for shape.
+  // can be trained: picking one of their options saves the drawn stroke
+  // as a personal example, so a similar shape reads right next time (see
+  // js/training.js). Wide Sweep and the closed shapes are read straight
+  // off the ring-relative geometry (how wide an arc the stroke sweeps
+  // around the ring center, whether it closes into a loop) rather than
+  // shape-matched, so there's nothing to save an example of; picking one
+  // only corrects this sign, which the UI says outright.
   const CORRECTION_FAMILIES = [
-    { label: "straight", name: "Straight", archetypeId: "column", trainable: true },
-    { label: "wideSweep", name: "Wide Sweep", archetypeId: "dispersion", trainable: false },
-    { label: "wavy", name: "Wavy", archetypeId: "levitation", trainable: true },
-    { label: "bend", name: "Bend", archetypeId: "bend", trainable: true },
-    { label: "bolt", name: "Bolt", archetypeId: "bolt", trainable: true },
-    { label: "diamond", name: "Diamond", archetypeId: "diamond", trainable: false },
-    { label: "crush", name: "Crush", archetypeId: "crush", trainable: false },
+    { archetypeId: "column", name: "Column (outward)", trainLabel: "straight", trainable: true, inverted: false },
+    { archetypeId: "pull", name: "Pull (inward)", trainLabel: "straight", trainable: true, inverted: true },
+    { archetypeId: "dispersion", name: "Dispersion (outward)", trainable: false, inverted: false },
+    { archetypeId: "convergence", name: "Convergence (inward)", trainable: false, inverted: true },
+    { archetypeId: "levitation", name: "Wavy", trainLabel: "wavy", trainable: true },
+    { archetypeId: "bend", name: "Bend", trainLabel: "bend", trainable: true },
+    { archetypeId: "bolt", name: "Bolt", trainLabel: "bolt", trainable: true },
+    { archetypeId: "diamond", name: "Diamond", trainable: false },
+    { archetypeId: "crush", name: "Crush", trainable: false },
   ];
 
   // 700ms wasn't enough room to reposition between the parts of a
@@ -168,6 +177,17 @@
   const lastDrawnEl = document.getElementById("last-drawn");
   let groupPaths = [];
 
+  // "Read as: ..." describes whichever sign was drawn most recently, so a
+  // correction (the family dropdown, or the "wrong reading?" panel) only
+  // updates it when it's correcting that same sign -- otherwise it stayed
+  // frozen on the old reading even after the fix, which reads as though
+  // the fix hadn't taken.
+  function refreshLastDrawnIfCurrent(instance) {
+    if (state.signs[state.signs.length - 1] !== instance) return;
+    const archetype = getArchetype(instance.archetypeId);
+    lastDrawnEl.textContent = `Read as: ${archetype.name} (${archetype.short})`;
+  }
+
   function finalizeGroup() {
     groupTimer = null;
     if (groupPaths.length === 0) return;
@@ -291,6 +311,7 @@
         });
         select.addEventListener("change", () => {
           instance.archetypeId = select.value;
+          refreshLastDrawnIfCurrent(instance);
           renderSignList();
           recompute();
         });
@@ -378,7 +399,7 @@
 
       const optionRow = document.createElement("div");
       optionRow.className = "correct-options";
-      CORRECTION_FAMILIES.forEach(({ label, name, archetypeId: targetId, trainable }) => {
+      CORRECTION_FAMILIES.forEach(({ archetypeId: targetId, name, trainLabel, trainable, inverted }) => {
         const btn = document.createElement("button");
         btn.className = "chip correct-chip";
         btn.type = "button";
@@ -387,10 +408,10 @@
           ? `Also saves this stroke so similar shapes read as ${name} from now on`
           : `${name} is read from where the sign sits on the ring, not shape-matched, so this only fixes this one sign`;
         btn.addEventListener("click", () => {
-          if (trainable) Training.save(instance.basePaths, label);
-          if (label === "straight") instance.archetypeId = instance.inverted ? "pull" : "column";
-          else if (label === "wideSweep") instance.archetypeId = instance.inverted ? "convergence" : "dispersion";
-          else instance.archetypeId = targetId;
+          if (trainable) Training.save(instance.basePaths, trainLabel);
+          instance.archetypeId = targetId;
+          if (inverted !== undefined) instance.inverted = inverted;
+          refreshLastDrawnIfCurrent(instance);
           correctionPanelState.set(instance, {
             open: true,
             message: trainable
