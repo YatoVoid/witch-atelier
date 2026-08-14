@@ -143,14 +143,36 @@ function sharpTurnCount(points, angleThreshold) {
 // alternatives within whichever family the shape actually got classified
 // into, and a peak was never going to classify as straightIn no matter
 // how the geometry was read.
+// Family membership is decided by each sign's own reference glyph shape
+// (assets/signs/*.webp), not by what its narrative effect resembles.
+// "wavy" used to also list levitation, bird, and eye: tracing the actual
+// glyph art (see js/data/templates.js) showed none of the three are
+// wavy-shaped. Levitation's glyph is a plain straight arrow, Eye's is a
+// closed oval with a center dot, and Bird's dominant curve behaves like
+// a single bend, not a back-and-forth wiggle -- so a person drawing any
+// of them got a geometrically correct family read that the sign list
+// couldn't offer, since the sign itself was still filed under the wrong
+// family here. Moved to the families their actual shapes land in.
+//
+// Vision (an eight-arm radial burst) and Dancing Puppet (a ring of four
+// loops) are left under "wavy" even though neither is wavy-shaped
+// either: unlike the three above, neither one matches ANY of the app's
+// eight family detection methods reliably. Which family they land in
+// today is closest-template coincidence, not a real classification, and
+// could silently shift again the next time a template changes. Forcing
+// them into whatever they happen to match right now would trade one
+// wrong bucket for a differently-wrong one; a real fix needs dedicated
+// detection for each shape (a radial-arm-count check, a loop-count
+// check), not a bucket move. Tracked here as a known gap, not silently
+// left unmeasured.
 const SIGN_BUCKETS = {
-  straightOut: ["column", "crosshair", "enlarge"],
+  straightOut: ["column", "crosshair", "enlarge", "levitation"],
   straightIn: ["pull"],
   wideOut: ["dispersion", "radial", "rain", "billowing", "weave"],
   wideIn: ["convergence", "window", "collection"],
-  wavy: ["levitation", "float", "bird", "dancing-puppet", "eye", "vision"],
-  zigzag: ["bolt", "bend", "direction"],
-  closedSmooth: ["diamond", "repetition"],
+  wavy: ["float", "dancing-puppet", "vision"],
+  zigzag: ["bolt", "bend", "direction", "bird"],
+  closedSmooth: ["diamond", "repetition", "eye"],
   closedChaotic: ["crush"],
 };
 

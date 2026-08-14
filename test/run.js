@@ -224,6 +224,19 @@ for (const arm of [35, 70, 100]) {
 check("Direction is reachable from a peak's own family", bucketCandidates("bend").includes("direction"), true);
 check("Direction is not still listed under Pull's family", bucketCandidates("pull").includes("direction"), false);
 
+// Levitation, Bird, and Eye were bucketed under "wavy" even though none
+// of their reference glyphs are wavy-shaped (a plain arrow, a curved
+// hook, a closed oval): a person drawing any of them got a geometrically
+// correct family read the sign list couldn't act on, since the sign was
+// still filed under the wrong family here. Moved to match their actual
+// shape (see the comment on SIGN_BUCKETS in classify.js).
+check("Levitation is reachable from Column's family (its glyph is a straight arrow)", bucketCandidates("column").includes("levitation"), true);
+check("Levitation is not still listed under wavy", bucketCandidates("float").includes("levitation"), false);
+check("Bird is reachable from Bend's family (its glyph is a curved hook)", bucketCandidates("bend").includes("bird"), true);
+check("Bird is not still listed under wavy", bucketCandidates("float").includes("bird"), false);
+check("Eye is reachable from Diamond's family (its glyph is a closed oval)", bucketCandidates("diamond").includes("eye"), true);
+check("Eye is not still listed under wavy", bucketCandidates("float").includes("eye"), false);
+
 // A T-shape (spine + short tick) must NOT be misread as bend: the spine
 // should dominate. Drawn radially (pointing away from ring center, like a
 // real outward stroke), not tangentially across it: a stroke tangent to
@@ -250,7 +263,7 @@ function familyToArchetype(familyKey) {
     straightIn: "pull",
     wideOut: "dispersion",
     wideIn: "convergence",
-    wavy: "levitation",
+    wavy: "float",
     zigzag: "bolt",
     closedSmooth: "diamond",
     closedChaotic: "crush",
