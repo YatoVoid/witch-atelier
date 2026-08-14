@@ -180,6 +180,13 @@ h2:first-child {
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1.25rem;
+  /* Grid/flex items default to min-width:auto, sized to fit their content
+     on one line even where flex-wrap should let it wrap (the sign-row's
+     dropdown/slider/remove button, for instance). Without this, a wide
+     enough row pushes the whole panel past the viewport instead of
+     wrapping, dragging the canvas (sized off this panel's width) and the
+     page along with it into horizontal scroll. */
+  min-width: 0;
 }
 
 .chip-row {
@@ -367,13 +374,24 @@ h2:first-child {
 }
 
 .sign-row {
-  display: grid;
-  grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--line);
   font-size: 0.85rem;
+}
+
+/* Grid on desktop; the mobile @media block above (max-width: 899.98px)
+   switches this to a wrapping flex row instead. That rule comes earlier
+   in the file, so display: grid has to live inside its own min-width
+   query rather than the unqualified base rule above, otherwise it wins
+   the cascade on ties (same specificity, later source) and silently
+   cancels the mobile wrap behavior regardless of viewport width. */
+@media (min-width: 900px) {
+  .sign-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto auto;
+  }
 }
 
 .sign-row-thumb {
