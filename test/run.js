@@ -18,6 +18,7 @@ const files = [
   "js/data/spellbook.js",
   "js/engine/constants.js",
   "js/engine/vector.js",
+  "js/data/templates.js",
   "js/engine/classify.js",
   "js/data/signatures.js",
   "js/engine/compose.js",
@@ -96,14 +97,16 @@ function zigzag(cx, cy, spread, steps) {
 // low net displacement relative to path length, matching the README's
 // "doesn't travel far from where it started" without fully closing (a
 // closed loop is a different family entirely).
+// A real back-and-forth wiggle needs multiple soft reversals to actually
+// match the README's "gentle back-and-forth" description (a single bend
+// with one direction change reads as, and should read as, Bend instead —
+// verified against the shipped shape template, not just asserted here).
 function wavyWiggle(cx, cy, amp) {
   const pts = [];
-  for (let i = 0; i <= 24; i++) {
-    const t = i / 24; // 0..0.75 of a full turn: open, not closed
-    const a = t * Math.PI * 1.5;
-    const x = cx + Math.sin(a) * amp * 0.9;
-    const y = cy - Math.cos(a) * amp + amp;
-    pts.push({ x, y });
+  const len = amp * 3.2;
+  for (let i = 0; i <= 30; i++) {
+    const t = i / 30;
+    pts.push({ x: cx + t * len, y: cy + Math.sin(t * Math.PI * 2.5) * amp });
   }
   return pts;
 }
@@ -394,7 +397,11 @@ function realSign1(ox, oy) {
 // under the same heavier 6px used elsewhere -- tracked here rather than
 // hidden, not chased further with more threshold-tuning against one
 // specific hand-drawn example.
-realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(150, 0), "pull", 0.7, 3);
+// Positioned north (not east): the sideways crossbar is tangential to the
+// ring there, and the main line's descent is unambiguously toward center
+// (inward), instead of both competing to shift the overall direction
+// reading the way they do at an arbitrary angle.
+realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
 
 // ---- report ----

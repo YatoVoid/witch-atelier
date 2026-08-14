@@ -482,6 +482,15 @@ h2:first-child {
   text-decoration: line-through;
 }
 
+.train-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem 0 0.6rem;
+  margin-top: -0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
 .secondary-btn:hover {
   background: var(--wash);
 }

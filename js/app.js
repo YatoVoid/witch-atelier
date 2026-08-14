@@ -12,6 +12,18 @@
     groupPaths: [],
   };
 
+  // The four shape categories classify.js's point-cloud matcher
+  // recognizes (see js/data/templates.js). archetypeId is only the
+  // default for bend/bolt/wavy; "straight" resolves to column or pull
+  // depending on which way the stroke was actually drawn (see the click
+  // handler below), so its entry here is unused but kept for shape.
+  const TRAIN_CATEGORIES = [
+    { label: "straight", name: "Straight", archetypeId: "column" },
+    { label: "bend", name: "Bend", archetypeId: "bend" },
+    { label: "bolt", name: "Bolt", archetypeId: "bolt" },
+    { label: "wavy", name: "Wavy", archetypeId: "levitation" },
+  ];
+
   // 700ms wasn't enough room to reposition between the parts of a
   // deliberate multi-stroke sign (moving your hand/finger to line up the
   // next stroke takes longer than that), so the first stroke alone was
@@ -147,7 +159,7 @@
     groupTimer = null;
     if (groupPaths.length === 0) return;
 
-    const archetypeId = classifyStrokeGroup(groupPaths);
+    const archetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
     const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
     const start = spine[0];
     const end = spine[spine.length - 1];
@@ -295,6 +307,37 @@
         recompute();
       });
 
+      // If the shape came out wrong at the family level (read as Bolt when
+      // it was clearly meant as a straight line, say), the dropdown above
+      // can't fix that, it only offers alternatives within the family
+      // classify.js already picked. This saves the drawn stroke itself as
+      // a personal correction (see js/training.js), so the same shape
+      // reads right next time, not just this once.
+      const trainBtn = document.createElement("button");
+      trainBtn.className = "mini-btn";
+      trainBtn.textContent = "fix shape";
+      trainBtn.title = "Save this stroke as an example of what it should have read as";
+      row.appendChild(trainBtn);
+
+      const picker = document.createElement("div");
+      picker.className = "train-picker";
+      picker.hidden = true;
+      TRAIN_CATEGORIES.forEach(({ label, name, archetypeId: targetId }) => {
+        const btn = document.createElement("button");
+        btn.className = "mini-btn";
+        btn.textContent = name;
+        btn.addEventListener("click", () => {
+          Training.save(instance.basePaths, label);
+          instance.archetypeId = label === "straight" ? (instance.inverted ? "pull" : "column") : targetId;
+          renderSignList();
+          recompute();
+        });
+        picker.appendChild(btn);
+      });
+      trainBtn.addEventListener("click", () => {
+        picker.hidden = !picker.hidden;
+      });
+
       const removeBtn = document.createElement("button");
       removeBtn.className = "mini-btn danger";
       removeBtn.textContent = "remove";
@@ -306,6 +349,7 @@
       row.appendChild(removeBtn);
 
       signList.appendChild(row);
+      signList.appendChild(picker);
     });
   }
 

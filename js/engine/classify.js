@@ -1,8 +1,27 @@
 // Reads the shape of a drawn sign (one or more strokes, since most of the
-// reference glyphs are a few short parts combined, not one continuous line)
-// and picks which family it belongs to. Deterministic heuristics, no
-// network call and no model, so it runs instantly and the same shape always
-// classifies the same way.
+// reference glyphs are a few short parts combined, not one continuous
+// line) and picks which family it belongs to.
+//
+// Two different techniques, used for what each is actually good at:
+//
+// - Closedness (does the stroke loop back on itself) and ring-relative
+//   spread (does it sweep across a wide angle around the ring's center)
+//   are properties of the RAW, undistorted geometry, so they're read
+//   directly off it, same as before.
+// - Everything else (is this basically a straight line, a single corner,
+//   a multi-turn zigzag, or a gentle wiggle) is answered by comparing the
+//   stroke, after normalizing away its position/scale/rotation, against a
+//   small set of reference templates and taking the closest match. This
+//   is the $1 Unistroke Recognizer approach (Wobbrock, Wilson & Li,
+//   2007): matching the overall shape as a point cloud is far less
+//   sensitive to hand tremor and to decoration (an arrowhead, a crossbar,
+//   several strokes radiating from one point) than counting corners and
+//   comparing segment lengths ever was, because averaging distance over
+//   many points cancels noise a single threshold on one measurement
+//   can't. classifyStrokeGroup() takes an optional second argument of
+//   extra templates (personal corrections saved via the in-app training
+//   flow, layered on top of the shipped set in js/data/templates.js)
+//   without needing a network call or a trained model file.
 function strokeLength(points) {
   let total = 0;
   for (let i = 1; i < points.length; i++) {
@@ -12,7 +31,7 @@ function strokeLength(points) {
 }
 
 // Fast strokes produce sparse points, slow strokes produce dense ones.
-// Resampling to even arc-length spacing keeps turn/zigzag detection
+// Resampling to even arc-length spacing keeps shape comparison
 // independent of how fast the stroke was drawn.
 function resample(points, count) {
   const total = strokeLength(points);
@@ -33,20 +52,27 @@ function resample(points, count) {
     }
     covered += segLen;
   }
-  out.push(points[points.length - 1]);
+  // The loop above can fill `out` to exactly `count` on its own (when the
+  // last target lands exactly on the final source point); appending
+  // unconditionally would then overshoot to count+1. Every caller now
+  // relies on getting back exactly `count` points (shape-template
+  // comparison needs equal-length arrays to compare point by point).
+  if (out.length < count) out.push(points[points.length - 1]);
   return out;
 }
 
 // Angle from the ring's exact center is a genuinely poor signal for a
 // point that close to it: two points just a little to either side of
 // center read as ~180 degrees apart even along a dead-straight line, and
-// a small wiggle sign drawn near center can subtend just as wide an angle
-// as an actual sweep around the ring, purely from proximity to the origin
-// rather than any real spread. Points this close in don't say anything
-// reliable about spread, so they're left out of the measurement. Sized
-// well under the ring radius so it doesn't touch real wide-sweep signs,
-// which are drawn out where the ring actually is.
-const SPREAD_DEAD_ZONE = 40;
+// any small sign (a peak, a zigzag, not just a straight line) drawn near
+// center can subtend just as wide an angle as an actual sweep around the
+// ring, purely from proximity to the origin rather than any real spread.
+// Now that spread is checked before shape matching (so a decorated
+// straight line isn't mistaken for a sweep), this has to be generous
+// enough to fully exclude a whole small sign drawn near center, not just
+// individual noisy points, while staying well under where a real
+// wide-sweep sign is actually drawn.
+const SPREAD_DEAD_ZONE = 60;
 
 function angularSpread(points) {
   const usable = points.filter((p) => Math.hypot(p.x, p.y) > SPREAD_DEAD_ZONE);
@@ -60,34 +86,9 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
-// How far the stroke wanders sideways off the straight line from its start
-// to its end, relative to how far it travels. A hand-drawn "straight" line
-// still has a few pixels of tremor in it; measuring total path length
-// against the chord (the old approach) penalizes that tremor heavily over a
-// long stroke. Measuring the worst sideways wobble instead barely reacts to
-// small jitter and still catches an actual curve.
-function maxDeviationRatio(points) {
-  const start = points[0];
-  const end = points[points.length - 1];
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const chordLenSq = dx * dx + dy * dy;
-  if (chordLenSq < 1e-6) return 1;
-  let maxDev = 0;
-  for (const p of points) {
-    const t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / chordLenSq;
-    const projX = start.x + t * dx;
-    const projY = start.y + t * dy;
-    const dev = Math.hypot(p.x - projX, p.y - projY);
-    if (dev > maxDev) maxDev = dev;
-  }
-  return maxDev / Math.sqrt(chordLenSq);
-}
-
-// Sharp direction reversals within a single stroke. Never compared across
-// two separate strokes, a pen lift between parts isn't a turn. The angle
-// threshold is deliberately high (~85 degrees) so a smooth wave, which
-// still turns but gradually, doesn't register as a zigzag.
+// Sharp direction reversals within a single stroke. The angle threshold
+// is deliberately high (~77 degrees) so a smooth wave, which still turns
+// but gradually, doesn't register as a zigzag.
 function sharpTurnCount(points, angleThreshold) {
   let count = 0;
   let prevHeading = null;
@@ -101,12 +102,12 @@ function sharpTurnCount(points, angleThreshold) {
       let diff = heading - prevHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      // Same fix as splitAtCorners below: a corner landing near a resample
-      // boundary interpolates through the vertex and splits into two
-      // hops that are each individually under threshold. Only combining
-      // same-direction hops means independent jitter (which flips sign
-      // often) mostly doesn't accumulate, while a real corner (whose
-      // smeared halves turn the same way) still gets caught.
+      // A corner landing near a resample boundary interpolates through the
+      // vertex and splits into two hops that are each individually under
+      // threshold. Only combining same-direction hops means independent
+      // jitter (which flips sign often) mostly doesn't accumulate, while a
+      // real corner (whose smeared halves turn the same way) still gets
+      // caught.
       const combined = Math.sign(diff) === Math.sign(prevDiff) ? diff + prevDiff : diff;
       if (Math.abs(diff) > angleThreshold || Math.abs(combined) > angleThreshold) {
         count++;
@@ -155,95 +156,143 @@ function familyKeyOf(archetypeId) {
 }
 
 const ZIGZAG_ANGLE = 1.35; // ~77 degrees, used for the closed-shape smooth/chaotic call
-const CORNER_ANGLE = 1.05; // ~60 degrees, used to cut a path at a real corner
-const CORNER_WINDOW_FRACTION = 0.2; // how much of the stroke each side of a candidate point contributes to its direction
 
-// The direction change at each point, measured between the AVERAGE
-// direction over a chunk of the stroke before it and a chunk after it,
-// rather than between adjacent samples. A single point-to-point heading is
-// a derivative over a tiny distance, which amplifies hand tremor (a few px
-// of noise dominates a ~6px hop); averaging direction over a meaningful
-// fraction of the stroke's own length cancels independent jitter (it has
-// no consistent direction to sum toward) while a genuine turn, a sustained
-// change, survives it.
-function turningAngles(points, k) {
-  const n = points.length;
-  const angles = new Array(n).fill(0);
-  for (let i = k; i < n - k; i++) {
-    const before = points[i - k];
-    const cur = points[i];
-    const after = points[i + k];
-    const inHeading = Math.atan2(cur.y - before.y, cur.x - before.x);
-    const outHeading = Math.atan2(after.y - cur.y, after.x - cur.x);
-    let diff = outHeading - inHeading;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    angles[i] = diff;
+// ---- point-cloud shape matching ($1 Unistroke Recognizer) ----
+
+const TEMPLATE_SAMPLE_COUNT = 32;
+
+function centroidOf(points) {
+  let sx = 0,
+    sy = 0;
+  for (const p of points) {
+    sx += p.x;
+    sy += p.y;
   }
-  return angles;
+  return { x: sx / points.length, y: sy / points.length };
 }
 
-// Cuts a path everywhere it turns sharply, so a shape drawn as one
-// continuous stroke (no pen lift) still separates into the same parts it
-// would if you'd drawn them separately. A corner is a corner either way.
-function splitAtCorners(rawPoints) {
-  const len = strokeLength(rawPoints);
-  if (len < 1e-6) return [rawPoints];
-  const sampleCount = Math.max(15, Math.min(40, Math.round(len / 5)));
-  const points = resample(rawPoints, sampleCount);
-  const k = Math.max(2, Math.round(sampleCount * CORNER_WINDOW_FRACTION));
-  const angles = turningAngles(points, k);
+function translateToOrigin(points) {
+  const c = centroidOf(points);
+  return points.map((p) => ({ x: p.x - c.x, y: p.y - c.y }));
+}
 
-  const cornerIndices = [];
-  let i = k;
-  while (i < points.length - k) {
-    if (Math.abs(angles[i]) > CORNER_ANGLE) {
-      // Walk to the local peak of this run so a turn that stays above
-      // threshold across several adjacent candidate points (common, since
-      // neighboring windows overlap) becomes one cut, not several.
-      let peak = i;
-      let peakVal = Math.abs(angles[i]);
-      let j = i;
-      while (j < points.length - k && Math.abs(angles[j]) > CORNER_ANGLE * 0.5) {
-        if (Math.abs(angles[j]) > peakVal) {
-          peak = j;
-          peakVal = Math.abs(angles[j]);
-        }
-        j++;
-      }
-      cornerIndices.push(peak);
-      i = j;
+function scaleToUnit(points) {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  const diag = Math.hypot(maxX - minX, maxY - minY) || 1;
+  return points.map((p) => ({ x: p.x / diag, y: p.y / diag }));
+}
+
+function rotateBy(points, theta) {
+  const cos = Math.cos(theta),
+    sin = Math.sin(theta);
+  return points.map((p) => ({ x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos }));
+}
+
+// Resample -> recenter -> rescale -> rotate so the first point sits due
+// east of center. That last step (the "indicative angle") gives every
+// normalized shape a consistent starting orientation so the rotation
+// search below only has to correct for minor variation around it, not
+// search the full circle.
+function normalizeForMatching(rawPoints) {
+  const resampled = resample(rawPoints, TEMPLATE_SAMPLE_COUNT);
+  const centered = translateToOrigin(resampled);
+  const scaled = scaleToUnit(centered);
+  const indicativeAngle = Math.atan2(scaled[0].y, scaled[0].x);
+  return rotateBy(scaled, -indicativeAngle);
+}
+
+function meanPointDistance(a, b) {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d += Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y);
+  return d / a.length;
+}
+
+// Golden section search for the rotation (within +/-45 degrees of the
+// indicative-angle alignment already applied) that best aligns the
+// candidate with a template, so two shapes that are the same but drawn a
+// little differently rotated don't get penalized for it.
+function bestAlignedDistance(candidate, template) {
+  const phi = 0.5 * (Math.sqrt(5) - 1);
+  let a = -Math.PI / 4,
+    b = Math.PI / 4;
+  const angleThreshold = 0.05;
+  const distanceAt = (theta) => meanPointDistance(rotateBy(candidate, theta), template);
+  let x1 = phi * a + (1 - phi) * b;
+  let f1 = distanceAt(x1);
+  let x2 = (1 - phi) * a + phi * b;
+  let f2 = distanceAt(x2);
+  while (Math.abs(b - a) > angleThreshold) {
+    if (f1 < f2) {
+      b = x2;
+      x2 = x1;
+      f2 = f1;
+      x1 = phi * a + (1 - phi) * b;
+      f1 = distanceAt(x1);
     } else {
-      i++;
+      a = x1;
+      x1 = x2;
+      f1 = f2;
+      x2 = (1 - phi) * a + phi * b;
+      f2 = distanceAt(x2);
     }
   }
+  return Math.min(f1, f2);
+}
 
-  if (cornerIndices.length === 0) return [points];
-  const segments = [];
-  let start = 0;
-  for (const idx of cornerIndices) {
-    segments.push(points.slice(start, idx + 1));
-    start = idx;
+let builtinTemplateCache = null;
+function normalizedBuiltinTemplates() {
+  if (builtinTemplateCache) return builtinTemplateCache;
+  builtinTemplateCache = {};
+  for (const label in SHAPE_TEMPLATES) {
+    builtinTemplateCache[label] = SHAPE_TEMPLATES[label].map(normalizeForMatching);
   }
-  segments.push(points.slice(start));
-  return segments.filter((s) => strokeLength(s) > 1e-3);
+  return builtinTemplateCache;
+}
+
+// Matches a (possibly multi-stroke, points concatenated in drawing order)
+// shape against the shipped templates plus any extra ones (personal
+// corrections from localStorage, already normalized) passed in.
+function matchShapeTemplate(rawPoints, extraTemplates) {
+  const candidate = normalizeForMatching(rawPoints);
+  const pools = [normalizedBuiltinTemplates()];
+  if (extraTemplates) pools.push(extraTemplates);
+
+  let bestLabel = null;
+  let bestDistance = Infinity;
+  for (const pool of pools) {
+    for (const label in pool) {
+      for (const template of pool[label]) {
+        const d = bestAlignedDistance(candidate, template);
+        if (d < bestDistance) {
+          bestDistance = d;
+          bestLabel = label;
+        }
+      }
+    }
+  }
+  return { label: bestLabel, distance: bestDistance };
 }
 
 // A sign is one or more strokes drawn close together in time (see app.js's
-// grouping window). Most of the reference glyphs are a short spine plus one
-// or two small ticks or caps, whether that's drawn as separate strokes or
-// as one continuous line that turns a corner. Closedness is checked first,
-// on the whole undivided shape, because a sharp-cornered outline (Diamond)
-// would otherwise look identical to a zigzag. Everything else gets cut at
-// its corners and judged by whether one part dominates the total length: a
-// T-shape's spine dominates, a lightning-bolt zigzag has no dominant part.
-function classifyStrokeGroup(paths) {
+// grouping window). Most of the reference glyphs are a short spine plus
+// one or two small ticks or caps, whether that's drawn as separate
+// strokes or as one continuous line that turns a corner.
+function classifyStrokeGroup(paths, extraTemplates) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
 
-  // Not smoothed: the whole point of this check is measuring how tightly
-  // and chaotically the stroke turns, which is exactly the high-frequency
-  // detail a smoothing pass would erase.
+  // Closedness is checked first, on the whole undivided shape, because a
+  // sharp-cornered outline (Diamond) would otherwise look identical to a
+  // zigzag or a chaotic scribble to the shape matcher below.
   const overallSpine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
   const spinePoints = resample(overallSpine, 20);
   const spineStart = spinePoints[0];
@@ -270,32 +319,10 @@ function classifyStrokeGroup(paths) {
   // need to sit close to either side.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
 
-  const segments = valid.flatMap((p) => splitAtCorners(p));
-  const totalLength = segments.reduce((sum, seg) => sum + strokeLength(seg), 0);
-  const spine = segments.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
-  const dominance = strokeLength(spine) / (totalLength || 1e-6);
-
-  // A crosshair or Enlarge's corner brackets are several separate straight
-  // strokes radiating from a shared point, none individually dominant by
-  // length. Corner detection on short arms is too jitter-sensitive to use
-  // directly (a spurious corner on any one arm looks the same as a real
-  // one), but each arm's own wobble against its own start-end chord isn't:
-  // it stays low under realistic tremor even when a spurious corner gets
-  // detected on top of it. If every stroke is individually close to
-  // straight, this is a radiating multi-arm gesture, not a zigzag, no
-  // matter how the length dominance or corner count come out.
-  const radiatingStraightArms =
-    valid.length >= 2 && valid.every((p) => maxDeviationRatio(resample(p, Math.min(20, p.length))) < 0.35);
-
-  // A decorated straight line (an arrowhead or a flourish tacked onto the
-  // end) keeps heading the same general direction it started in, even
-  // though the decoration itself may have real corners and no single part
-  // dominates by length. A genuine bend/zigzag's parts point in clearly
-  // different directions instead. Averaging a few points at each end
-  // instead of trusting single raw endpoints keeps this usable under
-  // tremor; the dominance floor keeps it from also swallowing an actual
-  // zigzag, whose parts are more evenly sized and can coincidentally
-  // point a similar net direction too.
+  // Direction (outward/inward) for whatever family this turns out to be:
+  // averaged over a few points at each end rather than trusted from a
+  // single raw endpoint, since hand tremor swings a lone point's position
+  // more than it swings an average of several.
   function averagedEndpoint(points, fromEnd) {
     const n = Math.min(4, points.length);
     const slice = fromEnd ? points.slice(-n) : points.slice(0, n);
@@ -308,43 +335,26 @@ function classifyStrokeGroup(paths) {
     return { x: sx / slice.length, y: sy / slice.length };
   }
   const overallStart = averagedEndpoint(valid[0], false);
-  const overallEnd = averagedEndpoint(valid[valid.length - 1], true);
-  const overallHeading = Math.atan2(overallEnd.y - overallStart.y, overallEnd.x - overallStart.x);
-  const spineDirStart = averagedEndpoint(spine, false);
-  const spineDirEnd = averagedEndpoint(spine, true);
-  const spineHeading = Math.atan2(spineDirEnd.y - spineDirStart.y, spineDirEnd.x - spineDirStart.x);
-  let headingDiff = Math.abs(overallHeading - spineHeading);
-  if (headingDiff > Math.PI) headingDiff = Math.PI * 2 - headingDiff;
-  const decorationContinuesSpine = dominance > 0.45 && headingDiff < 0.65;
+  const lastStroke = valid[valid.length - 1];
+  const overallEnd = averagedEndpoint(lastStroke, true);
+  const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
 
-  // A single sharp corner (a "^" or "V", two arms of similar length meeting
-  // at a point) reads as bend; three or more with no dominant part reads
-  // as bolt (a T-shaped spine-plus-tick is also 2 segments, but the spine
-  // dominates there). Skipped entirely for a multi-stroke radiating
-  // gesture or a decoration that continues the spine's own direction, in
-  // which case this is a straight-family sign no matter the segment count.
-  if (!radiatingStraightArms && !decorationContinuesSpine) {
-    if (segments.length >= 3 && dominance < 0.55) return "bolt";
-    if (segments.length === 2 && dominance < 0.65) return "bend";
-  }
-
-  const points = resample(spine, 20);
-  const start = points[0];
-  const end = points[points.length - 1];
-  const wobble = maxDeviationRatio(points);
-  const radialDelta = Math.hypot(end.x, end.y) - Math.hypot(start.x, start.y);
-
-  // A straight line has to be ruled out before checking angular spread,
-  // not after: a straight stroke that happens to pass close to the ring's
-  // center genuinely subtends a wide angle from that center (a point just
-  // north of center and one just south of it are ~180 degrees apart) even
-  // though it's clearly one straight line, not a sweep around the ring.
-  // Being straight (low wobble) is a more fundamental signal than where
-  // its chord sits relative to center, so it takes priority.
-  if (wobble < 0.25) return radialDelta >= 0 ? "column" : "pull";
-
+  // Wide sweeps (Dispersion/Convergence) are fundamentally about the
+  // stroke's relationship to the ring's center, not its own shape, so
+  // that's read directly off the raw geometry rather than through the
+  // rotation-normalized shape matcher below, which throws position away
+  // on purpose. Checked before shape matching for the same reason the
+  // old heuristic checked straightness before spread: a wide arc and a
+  // decorated straight line can both read as a passable "straight" shape
+  // match in isolation, but only one of them actually sweeps around the
+  // ring's center.
   const allPoints = valid.flatMap((p) => p);
   const spread = angularSpread(allPoints);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  return "levitation";
+
+  const combined = valid.flat();
+  const match = matchShapeTemplate(combined, extraTemplates);
+  if (match.label === "straight") return radialDelta >= 0 ? "column" : "pull";
+  if (match.label === "wavy") return "levitation";
+  return match.label; // "bend" or "bolt"
 }
