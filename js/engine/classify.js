@@ -141,6 +141,7 @@ function splitAtCorners(rawPoints) {
   const segments = [];
   let current = [points[0]];
   let prevHeading = null;
+  let prevDiff = 0;
   for (let i = 1; i < points.length; i++) {
     const dx = points[i].x - points[i - 1].x;
     const dy = points[i].y - points[i - 1].y;
@@ -150,13 +151,23 @@ function splitAtCorners(rawPoints) {
       let diff = heading - prevHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      if (Math.abs(diff) > CORNER_ANGLE) {
+      // A real corner can land right on a resample boundary: the hop that
+      // straddles the vertex interpolates through it and reads as roughly
+      // the average of the two arms' headings, splitting the true turn
+      // into two consecutive hops that are each individually under
+      // threshold. Summing the last two hops (but no further back, so a
+      // gradual curve spread over many hops still doesn't count) catches
+      // that without misreading a smooth turn as a corner.
+      const combined = Math.sign(diff) === Math.sign(prevDiff) ? diff + prevDiff : diff;
+      if (Math.abs(diff) > CORNER_ANGLE || Math.abs(combined) > CORNER_ANGLE) {
         current.push(points[i]);
         segments.push(current);
         current = [points[i]];
         prevHeading = heading;
+        prevDiff = 0;
         continue;
       }
+      prevDiff = diff;
     }
     current.push(points[i]);
     prevHeading = heading;
@@ -203,6 +214,12 @@ function classifyStrokeGroup(paths) {
   const spine = segments.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
   const dominance = strokeLength(spine) / (totalLength || 1e-6);
   if (segments.length >= 3 && dominance < 0.55) return "bolt";
+  // A single sharp corner (a "^" or "V", two arms of similar length meeting
+  // at a point) never reaches 3 segments, so it fell through to the wobble
+  // check below and got misread as a gentle wavy sign. Bend is exactly this
+  // shape: one corner, no dominant arm, unlike a T-shaped spine-plus-tick
+  // (also 2 segments after a corner split) where the spine dominates.
+  if (segments.length === 2 && dominance < 0.65) return "bend";
 
   const points = resample(spine, 20);
   const start = points[0];
