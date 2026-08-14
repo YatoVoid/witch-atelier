@@ -444,7 +444,7 @@ function realSign1(ox, oy) {
 // (inward), instead of both competing to shift the overall direction
 // reading the way they do at an arbitrary angle.
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
-realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
+realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "crosshair", 0.6);
 
 // Real crosshair from a user's devtools log, not synthesized: unlike
 // realSign1, its four arms don't share an exact origin pixel, which used
@@ -457,8 +457,8 @@ function realSign2() {
     [{ x: -15, y: -44.8 }, { x: -15, y: -42.8 }, { x: -15, y: -40.8 }, { x: -15, y: -37.8 }, { x: -15, y: -34.8 }, { x: -15, y: -31.8 }, { x: -15, y: -29.8 }, { x: -15, y: -25.8 }, { x: -15, y: -23.8 }, { x: -15, y: -20.8 }, { x: -15, y: -18.8 }, { x: -15, y: -16.8 }, { x: -15, y: -14.8 }, { x: -15, y: -12.8 }, { x: -15, y: -10.8 }, { x: -15, y: -8.8 }, { x: -15, y: -6.8 }],
   ];
 }
-check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "column");
-realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "column", 0.6);
+check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "crosshair");
+realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "crosshair", 0.6);
 
 // ---- 6. drawing a sign larger actually produces a noticeably stronger
 // reading, not just a quietly different number. Witch Hat Atelier's own

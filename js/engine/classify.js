@@ -455,7 +455,14 @@ function classifyStrokeGroup(paths, extraTemplates) {
     if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
   }
 
-  if (match.label === "straight") return radialDelta >= 0 ? "column" : "pull";
+  if (match.label === "straight") {
+    // Checked before direction: a symmetric 4-arm hub has no reliable
+    // "outward" arm to measure radialDelta from (whichever arm is
+    // marginally longest is close to a coin flip), and Crosshair has no
+    // inward variant to confuse with Pull anyway.
+    if (radiatesFromSharedHub(valid)) return "crosshair";
+    return radialDelta >= 0 ? "column" : "pull";
+  }
   if (match.label === "wavy") return "levitation";
   return match.label; // "bend" or "bolt"
 }
