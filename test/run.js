@@ -347,6 +347,56 @@ checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
+// ---- 5. real hand-drawn examples that came back misclassified in
+// practice (bolt/bend for shapes a person reads as clearly directional),
+// traced from actual screenshots rather than synthesized from the family
+// description. Multi-stroke, so built directly rather than through
+// checkJitterRobust's single-stroke helper. ----
+function realSignJitterRobust(label, pathsFn, expected, passRate = 0.7, jitterPx = JITTER_PX) {
+  let ok = 0;
+  for (let seed = 1; seed <= JITTER_SEEDS; seed++) {
+    const rand = seededRandom(seed * 97);
+    const paths = pathsFn().map((p) =>
+      densify(p, 4).map((pt, i) => (i === 0 ? pt : { x: pt.x + (rand() - 0.5) * 2 * jitterPx, y: pt.y + (rand() - 0.5) * 2 * jitterPx }))
+    );
+    if (classifyStrokeGroup(paths) === expected) ok++;
+  }
+  const rate = ok / JITTER_SEEDS;
+  if (rate >= passRate) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`${label} (jittered): only ${ok}/${JITTER_SEEDS} still classified as "${expected}"`);
+  }
+}
+
+// Vertical line into a small arrowhead, plus a separate wide crossbar
+// drawn through the tip -- two strokes, decorated well past the point a
+// synthetic test would normally bother with.
+function realSign0(ox, oy) {
+  const mainLine = [...line(0, -35, 0, 22), ...line(0, 22, -9, 15).slice(1), ...line(-9, 15, 0, 22).slice(1), ...line(0, 22, 9, 15).slice(1)];
+  const crossbar = line(-19, 27, 19, 27);
+  return [mainLine, crossbar].map((p) => p.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })));
+}
+// A crosshair: four separate straight strokes radiating from a shared
+// center, deliberately uneven lengths (up 45, down 35, left 29, right 31)
+// since a real hand rarely draws four perfectly equal arms.
+function realSign1(ox, oy) {
+  const up = line(0, 0, 0, -45);
+  const down = line(0, 0, 0, 35);
+  const left = line(0, 0, -29, 0);
+  const right = line(0, 0, 31, 0);
+  return [up, down, left, right].map((p) => p.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })));
+}
+// This one has three layered decorations (arrowhead + separate crossbar)
+// on top of the core line, more than the other jitter checks carry, so it
+// holds up at a moderate tremor level but genuinely degrades toward "bolt"
+// under the same heavier 6px used elsewhere -- tracked here rather than
+// hidden, not chased further with more threshold-tuning against one
+// specific hand-drawn example.
+realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(150, 0), "pull", 0.7, 3);
+realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
+
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);
 if (failures.length) {

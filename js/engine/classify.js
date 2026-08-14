@@ -274,13 +274,59 @@ function classifyStrokeGroup(paths) {
   const totalLength = segments.reduce((sum, seg) => sum + strokeLength(seg), 0);
   const spine = segments.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
   const dominance = strokeLength(spine) / (totalLength || 1e-6);
-  if (segments.length >= 3 && dominance < 0.55) return "bolt";
+
+  // A crosshair or Enlarge's corner brackets are several separate straight
+  // strokes radiating from a shared point, none individually dominant by
+  // length. Corner detection on short arms is too jitter-sensitive to use
+  // directly (a spurious corner on any one arm looks the same as a real
+  // one), but each arm's own wobble against its own start-end chord isn't:
+  // it stays low under realistic tremor even when a spurious corner gets
+  // detected on top of it. If every stroke is individually close to
+  // straight, this is a radiating multi-arm gesture, not a zigzag, no
+  // matter how the length dominance or corner count come out.
+  const radiatingStraightArms =
+    valid.length >= 2 && valid.every((p) => maxDeviationRatio(resample(p, Math.min(20, p.length))) < 0.35);
+
+  // A decorated straight line (an arrowhead or a flourish tacked onto the
+  // end) keeps heading the same general direction it started in, even
+  // though the decoration itself may have real corners and no single part
+  // dominates by length. A genuine bend/zigzag's parts point in clearly
+  // different directions instead. Averaging a few points at each end
+  // instead of trusting single raw endpoints keeps this usable under
+  // tremor; the dominance floor keeps it from also swallowing an actual
+  // zigzag, whose parts are more evenly sized and can coincidentally
+  // point a similar net direction too.
+  function averagedEndpoint(points, fromEnd) {
+    const n = Math.min(4, points.length);
+    const slice = fromEnd ? points.slice(-n) : points.slice(0, n);
+    let sx = 0,
+      sy = 0;
+    for (const p of slice) {
+      sx += p.x;
+      sy += p.y;
+    }
+    return { x: sx / slice.length, y: sy / slice.length };
+  }
+  const overallStart = averagedEndpoint(valid[0], false);
+  const overallEnd = averagedEndpoint(valid[valid.length - 1], true);
+  const overallHeading = Math.atan2(overallEnd.y - overallStart.y, overallEnd.x - overallStart.x);
+  const spineDirStart = averagedEndpoint(spine, false);
+  const spineDirEnd = averagedEndpoint(spine, true);
+  const spineHeading = Math.atan2(spineDirEnd.y - spineDirStart.y, spineDirEnd.x - spineDirStart.x);
+  let headingDiff = Math.abs(overallHeading - spineHeading);
+  if (headingDiff > Math.PI) headingDiff = Math.PI * 2 - headingDiff;
+  const decorationContinuesSpine = dominance > 0.45 && headingDiff < 0.65;
+
   // A single sharp corner (a "^" or "V", two arms of similar length meeting
-  // at a point) never reaches 3 segments, so it fell through to the wobble
-  // check below and got misread as a gentle wavy sign. Bend is exactly this
-  // shape: one corner, no dominant arm, unlike a T-shaped spine-plus-tick
-  // (also 2 segments after a corner split) where the spine dominates.
-  if (segments.length === 2 && dominance < 0.65) return "bend";
+  // at a point) reads as bend; three or more with no dominant part reads
+  // as bolt (a T-shaped spine-plus-tick is also 2 segments, but the spine
+  // dominates there). Skipped entirely for a multi-stroke radiating
+  // gesture or a decoration that continues the spine's own direction, in
+  // which case this is a straight-family sign no matter the segment count.
+  if (!radiatingStraightArms && !decorationContinuesSpine) {
+    if (segments.length >= 3 && dominance < 0.55) return "bolt";
+    if (segments.length === 2 && dominance < 0.65) return "bend";
+  }
 
   const points = resample(spine, 20);
   const start = points[0];
