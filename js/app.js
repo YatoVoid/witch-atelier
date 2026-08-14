@@ -157,8 +157,11 @@
       archetypeId,
       angle,
       length,
+      baseLength: length,
       inverted,
       paths: groupPaths.slice(),
+      basePaths: groupPaths.map((p) => p.slice()),
+      anchor: { x: groupPaths[0][0].x, y: groupPaths[0][0].y },
     });
     groupPaths = [];
     state.groupPaths = groupPaths;
@@ -255,11 +258,26 @@
       slider.max = "1.4";
       slider.step = "0.01";
       slider.value = String(instance.length);
+      row.appendChild(slider);
+
+      const lengthReadout = document.createElement("span");
+      lengthReadout.className = "sign-row-length";
+      lengthReadout.textContent = instance.length.toFixed(2);
+      row.appendChild(lengthReadout);
+
       slider.addEventListener("input", () => {
-        instance.length = parseFloat(slider.value);
+        const newLength = parseFloat(slider.value);
+        const scale = newLength / instance.baseLength;
+        instance.paths = instance.basePaths.map((path) =>
+          path.map((p) => ({
+            x: instance.anchor.x + (p.x - instance.anchor.x) * scale,
+            y: instance.anchor.y + (p.y - instance.anchor.y) * scale,
+          }))
+        );
+        instance.length = newLength;
+        lengthReadout.textContent = newLength.toFixed(2);
         recompute();
       });
-      row.appendChild(slider);
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "mini-btn danger";

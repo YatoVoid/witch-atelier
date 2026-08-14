@@ -262,7 +262,7 @@ h2:first-child {
 
 .sign-row {
   display: grid;
-  grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto;
+  grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0;
@@ -283,6 +283,14 @@ h2:first-child {
 
 .sign-row-name {
   font-family: var(--font-mono);
+}
+
+.sign-row-length {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  min-width: 2.4em;
+  text-align: right;
 }
 
 .sign-row-select {

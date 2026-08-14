@@ -127,50 +127,88 @@ function familyKeyOf(archetypeId) {
   return null;
 }
 
-const ZIGZAG_ANGLE = 1.35; // ~77 degrees
-const ZIGZAG_MIN_COUNT = 2;
+const ZIGZAG_ANGLE = 1.35; // ~77 degrees, used for the closed-shape smooth/chaotic call
+const CORNER_ANGLE = 1.2; // ~69 degrees, used to cut a path at a real corner
+
+// Cuts a path everywhere it turns sharply, so a shape drawn as one
+// continuous stroke (no pen lift) still separates into the same parts it
+// would if you'd drawn them separately. A corner is a corner either way.
+function splitAtCorners(rawPoints) {
+  const len = strokeLength(rawPoints);
+  if (len < 1e-6) return [rawPoints];
+  const count = Math.max(8, Math.min(40, Math.round(len / 6)));
+  const points = resample(rawPoints, count);
+  const segments = [];
+  let current = [points[0]];
+  let prevHeading = null;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    if (Math.hypot(dx, dy) < 0.5) continue;
+    const heading = Math.atan2(dy, dx);
+    if (prevHeading !== null) {
+      let diff = heading - prevHeading;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      if (Math.abs(diff) > CORNER_ANGLE) {
+        current.push(points[i]);
+        segments.push(current);
+        current = [points[i]];
+        prevHeading = heading;
+        continue;
+      }
+    }
+    current.push(points[i]);
+    prevHeading = heading;
+  }
+  segments.push(current);
+  return segments.filter((s) => strokeLength(s) > 1e-3);
+}
 
 // A sign is one or more strokes drawn close together in time (see app.js's
 // grouping window). Most of the reference glyphs are a short spine plus one
-// or two small ticks or caps, so the spine (the longest stroke) carries the
-// direction and shape. Shorter strokes only get checked for a zigzag, and
-// only if they're substantial (at least a third of the spine's length) so a
-// small cap or tick can't accidentally flip the whole sign to Bolt.
+// or two small ticks or caps, whether that's drawn as separate strokes or
+// as one continuous line that turns a corner. Closedness is checked first,
+// on the whole undivided shape, because a sharp-cornered outline (Diamond)
+// would otherwise look identical to a zigzag. Everything else gets cut at
+// its corners and judged by whether one part dominates the total length: a
+// T-shape's spine dominates, a lightning-bolt zigzag has no dominant part.
 function classifyStrokeGroup(paths) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
 
-  const spine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
-  const spineLength = strokeLength(spine);
-  const zigzagGate = Math.max(10, spineLength * 0.3);
-
-  for (const path of valid) {
-    if (strokeLength(path) < zigzagGate) continue;
-    const resampled = resample(path, 16);
-    if (sharpTurnCount(resampled, ZIGZAG_ANGLE) >= ZIGZAG_MIN_COUNT) return "bolt";
-  }
-
-  const points = resample(spine, 20);
-  const start = points[0];
-  const end = points[points.length - 1];
-  const chordLength = Math.hypot(end.x - start.x, end.y - start.y);
-  const wobble = maxDeviationRatio(points);
-  const radialDelta = Math.hypot(end.x, end.y) - Math.hypot(start.x, start.y);
+  const overallSpine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const spinePoints = resample(overallSpine, 20);
+  const spineStart = spinePoints[0];
+  const spineEnd = spinePoints[spinePoints.length - 1];
+  const spineChord = Math.hypot(spineEnd.x - spineStart.x, spineEnd.y - spineStart.y);
 
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
-  for (const p of points) {
+  for (const p of spinePoints) {
     minX = Math.min(minX, p.x);
     minY = Math.min(minY, p.y);
     maxX = Math.max(maxX, p.x);
     maxY = Math.max(maxY, p.y);
   }
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
-  const loopClosure = Math.max(0, 1 - chordLength / boundSize);
-  const closedShape = loopClosure > 0.6 && strokeLength(points) > boundSize * 0.7;
-  if (closedShape) return sharpTurnCount(points, ZIGZAG_ANGLE) < 2 ? "diamond" : "crush";
+  const loopClosure = Math.max(0, 1 - spineChord / boundSize);
+  const closedShape = loopClosure > 0.6 && strokeLength(spinePoints) > boundSize * 0.7;
+  if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) < 2 ? "diamond" : "crush";
+
+  const segments = valid.flatMap((p) => splitAtCorners(p));
+  const totalLength = segments.reduce((sum, seg) => sum + strokeLength(seg), 0);
+  const spine = segments.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const dominance = strokeLength(spine) / (totalLength || 1e-6);
+  if (segments.length >= 3 && dominance < 0.55) return "bolt";
+
+  const points = resample(spine, 20);
+  const start = points[0];
+  const end = points[points.length - 1];
+  const wobble = maxDeviationRatio(points);
+  const radialDelta = Math.hypot(end.x, end.y) - Math.hypot(start.x, start.y);
 
   const allPoints = valid.flatMap((p) => p);
   const spread = angularSpread(allPoints);
