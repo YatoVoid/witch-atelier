@@ -24,3 +24,21 @@
 
   activate("circle");
 })();
+
+// Collapsible section headings (currently just the Shape guide, which runs
+// to 24 rows and pushed the rest of the page down far enough that reaching
+// the spellbook meant scrolling past all of it every time). Remembered
+// across reloads the same way the grimoire already persists to localStorage.
+(function () {
+  const toggles = document.querySelectorAll(".collapsible-heading");
+  toggles.forEach((toggle) => {
+    const key = "atelier-collapsed-" + toggle.id;
+    const collapsed = localStorage.getItem(key) === "true";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.addEventListener("click", () => {
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      localStorage.setItem(key, String(expanded));
+    });
+  });
+})();

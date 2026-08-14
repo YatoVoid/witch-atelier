@@ -12,7 +12,11 @@
     groupPaths: [],
   };
 
-  const GROUP_WINDOW_MS = 700; // pause this long to lock in a multi-part sign
+  // 700ms wasn't enough room to reposition between the parts of a
+  // deliberate multi-stroke sign (moving your hand/finger to line up the
+  // next stroke takes longer than that), so the first stroke alone was
+  // locking in as the whole sign before the rest got drawn.
+  const GROUP_WINDOW_MS = 1400; // pause this long to lock in a multi-part sign
 
   let drawing = false;
   let rawPoints = []; // client-space points for the in-progress stroke

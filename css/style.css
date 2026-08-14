@@ -51,6 +51,39 @@ h2:first-child {
   margin-top: 0;
 }
 
+.collapsible-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.collapsible-heading h2 {
+  flex: 1;
+}
+
+.collapsible-arrow {
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+  margin-left: 0.5rem;
+}
+
+.collapsible-heading[aria-expanded="false"] .collapsible-arrow {
+  transform: rotate(-90deg);
+}
+
+.collapsible-heading[aria-expanded="false"] + [id] {
+  display: none;
+}
+
 .site-header {
   padding: 2rem 1.5rem 1rem;
   text-align: center;

@@ -199,10 +199,14 @@ check("wideOut (dispersion)", classifyStrokeGroup([arcSweep(90, -70, 70, true)])
 check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]), "convergence");
 
 // A T-shape (spine + short tick) must NOT be misread as bend: the spine
-// should dominate.
-const spine = line(0, -90, 0, 90);
-const tick = line(0, 90, 30, 90).slice(1);
-check("T-shape spine dominates (not bend)", classifyStrokeGroup([[...spine, ...tick]]), "column");
+// should dominate. Drawn radially (pointing away from ring center, like a
+// real outward stroke), not tangentially across it — a stroke tangent to
+// the ring has both endpoints equidistant from center by construction,
+// which makes "outward vs inward" genuinely undefined regardless of how
+// good the corner detection is, not a meaningful test of either.
+const tSpine = line(20, -20, 170, -170); // outward along a diagonal
+const tTick = line(170, -170, 200, -145).slice(1); // short perpendicular-ish cap
+check("T-shape spine dominates (not bend)", classifyStrokeGroup([[...tSpine, ...tTick]]), "column");
 
 // ---- 2. every SIGN_ARCHETYPES member belongs to exactly one SIGN_BUCKETS
 // family, and every family has a reachable default. ----
@@ -314,7 +318,7 @@ function densify(pts, stepPx) {
   return out;
 }
 
-const JITTER_PX = 3; // plausible finger tremor on a small ring
+const JITTER_PX = 6; // plausible finger tremor on a small ring, with margin
 const JITTER_SEEDS = 20;
 const JITTER_PASS_RATE = 0.8; // majority-correct, not perfect, is the bar
 

@@ -37,34 +37,6 @@ function resample(points, count) {
   return out;
 }
 
-// A finger on a small touchscreen circle easily produces 3-6px of tremor
-// per point. Two evenly-resampled points only ~6px apart (see resample()
-// above) means that tremor, not the actual line direction, dominates the
-// heading measured between them: differentiating over a short distance
-// amplifies noise. A small moving-average window suppresses independent
-// per-point jitter while leaving a real corner intact, since a genuine
-// turn's direction change is sustained across many points, not a single
-// noisy sample. Applied after resampling (not to the raw points directly)
-// so the window covers a consistent arc-length span regardless of how
-// fast or slow the stroke was drawn.
-function smoothPoints(points, window) {
-  if (points.length <= 2) return points;
-  const half = Math.floor(window / 2);
-  const out = [];
-  for (let i = 0; i < points.length; i++) {
-    let sx = 0,
-      sy = 0,
-      n = 0;
-    for (let k = Math.max(0, i - half); k <= Math.min(points.length - 1, i + half); k++) {
-      sx += points[k].x;
-      sy += points[k].y;
-      n++;
-    }
-    out.push({ x: sx / n, y: sy / n });
-  }
-  return out;
-}
-
 // Angle from the ring's exact center is a genuinely poor signal for a
 // point that close to it: two points just a little to either side of
 // center read as ~180 degrees apart even along a dead-straight line, and
@@ -183,7 +155,33 @@ function familyKeyOf(archetypeId) {
 }
 
 const ZIGZAG_ANGLE = 1.35; // ~77 degrees, used for the closed-shape smooth/chaotic call
-const CORNER_ANGLE = 1.2; // ~69 degrees, used to cut a path at a real corner
+const CORNER_ANGLE = 1.05; // ~60 degrees, used to cut a path at a real corner
+const CORNER_WINDOW_FRACTION = 0.2; // how much of the stroke each side of a candidate point contributes to its direction
+
+// The direction change at each point, measured between the AVERAGE
+// direction over a chunk of the stroke before it and a chunk after it,
+// rather than between adjacent samples. A single point-to-point heading is
+// a derivative over a tiny distance, which amplifies hand tremor (a few px
+// of noise dominates a ~6px hop); averaging direction over a meaningful
+// fraction of the stroke's own length cancels independent jitter (it has
+// no consistent direction to sum toward) while a genuine turn, a sustained
+// change, survives it.
+function turningAngles(points, k) {
+  const n = points.length;
+  const angles = new Array(n).fill(0);
+  for (let i = k; i < n - k; i++) {
+    const before = points[i - k];
+    const cur = points[i];
+    const after = points[i + k];
+    const inHeading = Math.atan2(cur.y - before.y, cur.x - before.x);
+    const outHeading = Math.atan2(after.y - cur.y, after.x - cur.x);
+    let diff = outHeading - inHeading;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    angles[i] = diff;
+  }
+  return angles;
+}
 
 // Cuts a path everywhere it turns sharply, so a shape drawn as one
 // continuous stroke (no pen lift) still separates into the same parts it
@@ -191,43 +189,43 @@ const CORNER_ANGLE = 1.2; // ~69 degrees, used to cut a path at a real corner
 function splitAtCorners(rawPoints) {
   const len = strokeLength(rawPoints);
   if (len < 1e-6) return [rawPoints];
-  const count = Math.max(8, Math.min(40, Math.round(len / 6)));
-  const points = smoothPoints(resample(rawPoints, count), 5);
-  const segments = [];
-  let current = [points[0]];
-  let prevHeading = null;
-  let prevDiff = 0;
-  for (let i = 1; i < points.length; i++) {
-    const dx = points[i].x - points[i - 1].x;
-    const dy = points[i].y - points[i - 1].y;
-    if (Math.hypot(dx, dy) < 0.5) continue;
-    const heading = Math.atan2(dy, dx);
-    if (prevHeading !== null) {
-      let diff = heading - prevHeading;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      // A real corner can land right on a resample boundary: the hop that
-      // straddles the vertex interpolates through it and reads as roughly
-      // the average of the two arms' headings, splitting the true turn
-      // into two consecutive hops that are each individually under
-      // threshold. Summing the last two hops (but no further back, so a
-      // gradual curve spread over many hops still doesn't count) catches
-      // that without misreading a smooth turn as a corner.
-      const combined = Math.sign(diff) === Math.sign(prevDiff) ? diff + prevDiff : diff;
-      if (Math.abs(diff) > CORNER_ANGLE || Math.abs(combined) > CORNER_ANGLE) {
-        current.push(points[i]);
-        segments.push(current);
-        current = [points[i]];
-        prevHeading = heading;
-        prevDiff = 0;
-        continue;
+  const sampleCount = Math.max(15, Math.min(40, Math.round(len / 5)));
+  const points = resample(rawPoints, sampleCount);
+  const k = Math.max(2, Math.round(sampleCount * CORNER_WINDOW_FRACTION));
+  const angles = turningAngles(points, k);
+
+  const cornerIndices = [];
+  let i = k;
+  while (i < points.length - k) {
+    if (Math.abs(angles[i]) > CORNER_ANGLE) {
+      // Walk to the local peak of this run so a turn that stays above
+      // threshold across several adjacent candidate points (common, since
+      // neighboring windows overlap) becomes one cut, not several.
+      let peak = i;
+      let peakVal = Math.abs(angles[i]);
+      let j = i;
+      while (j < points.length - k && Math.abs(angles[j]) > CORNER_ANGLE * 0.5) {
+        if (Math.abs(angles[j]) > peakVal) {
+          peak = j;
+          peakVal = Math.abs(angles[j]);
+        }
+        j++;
       }
-      prevDiff = diff;
+      cornerIndices.push(peak);
+      i = j;
+    } else {
+      i++;
     }
-    current.push(points[i]);
-    prevHeading = heading;
   }
-  segments.push(current);
+
+  if (cornerIndices.length === 0) return [points];
+  const segments = [];
+  let start = 0;
+  for (const idx of cornerIndices) {
+    segments.push(points.slice(start, idx + 1));
+    start = idx;
+  }
+  segments.push(points.slice(start));
   return segments.filter((s) => strokeLength(s) > 1e-3);
 }
 
@@ -284,7 +282,7 @@ function classifyStrokeGroup(paths) {
   // (also 2 segments after a corner split) where the spine dominates.
   if (segments.length === 2 && dominance < 0.65) return "bend";
 
-  const points = smoothPoints(resample(spine, 20), 5);
+  const points = resample(spine, 20);
   const start = points[0];
   const end = points[points.length - 1];
   const wobble = maxDeviationRatio(points);
