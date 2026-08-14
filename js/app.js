@@ -28,6 +28,7 @@
     { label: "wavy", name: "Wavy", instructions: "Draw a gentle back-and-forth wiggle, a couple of soft curves." },
     { label: "bend", name: "Bend", instructions: "Draw a single sharp corner, like a peak or a checkmark." },
     { label: "bolt", name: "Bolt", instructions: "Draw a zigzag: a few sharp turns back and forth." },
+    { label: "straight", name: "Crosshair", instructions: "Draw 4 short strokes from roughly one center: up, down, left, right." },
   ];
   const CALIBRATION_REPS = 5; // examples collected per shape
   let calibration = null; // { shapeIndex, rep } while active, else null

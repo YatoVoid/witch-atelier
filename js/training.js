@@ -16,15 +16,19 @@ const Training = {
   },
 
   // paths: the raw multi-stroke points a sign was actually drawn with
-  // (app.js keeps these as instance.basePaths). label: one of the shape
-  // categories classify.js's template matcher understands (straight,
-  // bend, bolt, wavy). Normalizing here rather than at match time means a
-  // saved example is stored the same way the shipped templates are
-  // cached, and match time doesn't repeat the work on every classify.
+  // (app.js keeps these as instance.basePaths). label: a shape category
+  // classify.js's template matcher understands (straight, bend, bolt,
+  // wavy). A crosshair-style hub (radiatesFromSharedHub, same check
+  // classify.js uses at match time) is saved one arm per entry instead
+  // of flattened into one polyline: concatenating arms that don't share
+  // an exact pixel bakes the same jump-reads-as-a-corner problem into
+  // the saved template that matching already avoids for live input.
   save(paths, label) {
-    const points = normalizeForMatching(paths.flat());
     const entries = Training.list();
-    entries.push({ label, points, savedAt: Date.now() });
+    const groups = paths.length >= 3 && radiatesFromSharedHub(paths) ? paths.map((p) => [p]) : [paths];
+    for (const group of groups) {
+      entries.push({ label, points: normalizeForMatching(group.flat()), savedAt: Date.now() });
+    }
     localStorage.setItem(TRAINING_KEY, JSON.stringify(entries));
   },
 

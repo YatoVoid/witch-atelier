@@ -304,6 +304,31 @@ function matchShapeTemplate(rawPoints, extraTemplates) {
 // grouping window). Most of the reference glyphs are a short spine plus
 // one or two small ticks or caps, whether that's drawn as separate
 // strokes or as one continuous line that turns a corner.
+// Requires 3+ strokes converging on a shared point: a plain corner or
+// zigzag only ever joins 2 strokes, and any lone straight segment
+// trivially matches "straight" on its own, so agreement alone can't
+// tell a real multi-arm hub (a crosshair) apart from an ordinary
+// multi-stroke shape.
+function radiatesFromSharedHub(strokes) {
+  if (strokes.length < 3) return false;
+  const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
+  let bestHubSize = 0;
+  for (let i = 0; i < endpoints.length; i++) {
+    for (const anchor of endpoints[i]) {
+      let scale = 0;
+      for (const s of strokes) scale = Math.max(scale, strokeLength(s));
+      const radius = Math.max(15, scale * 0.3);
+      let hubSize = 0;
+      for (let j = 0; j < endpoints.length; j++) {
+        const closeEnough = endpoints[j].some((p) => Math.hypot(p.x - anchor.x, p.y - anchor.y) <= radius);
+        if (closeEnough) hubSize++;
+      }
+      bestHubSize = Math.max(bestHubSize, hubSize);
+    }
+  }
+  return bestHubSize >= 3;
+}
+
 function classifyStrokeGroup(paths, extraTemplates) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
@@ -382,30 +407,6 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // Below that, concatenating equal-length strokes has its own jump
   // problem (a crosshair's arms rarely share an exact pixel), so a
   // genuine multi-arm hub is matched per-arm instead of concatenated.
-  // Requires 3+ strokes converging: a plain corner or zigzag only ever
-  // joins 2 strokes at a shared point, and any lone straight segment
-  // trivially matches "straight" on its own, so agreement alone can't
-  // tell a real hub apart from an ordinary multi-stroke shape.
-  function radiatesFromSharedHub(strokes) {
-    if (strokes.length < 3) return false;
-    const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
-    let bestHubSize = 0;
-    for (let i = 0; i < endpoints.length; i++) {
-      for (const anchor of endpoints[i]) {
-        let scale = 0;
-        for (const s of strokes) scale = Math.max(scale, strokeLength(s));
-        const radius = Math.max(15, scale * 0.3);
-        let hubSize = 0;
-        for (let j = 0; j < endpoints.length; j++) {
-          const closeEnough = endpoints[j].some((p) => Math.hypot(p.x - anchor.x, p.y - anchor.y) <= radius);
-          if (closeEnough) hubSize++;
-        }
-        bestHubSize = Math.max(bestHubSize, hubSize);
-      }
-    }
-    return bestHubSize >= 3;
-  }
-
   let match = null;
   if (strokeLength(mainStroke) / totalStrokeLength > 0.65) {
     match = matchShapeTemplate(mainStroke, extraTemplates);
