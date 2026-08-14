@@ -95,21 +95,24 @@ h2:first-child {
 .mobile-tab {
   flex: 1;
   min-height: 44px;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.02em;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
   background: transparent;
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  padding: 0.5rem 0.4rem;
-  border-radius: 4px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  padding: 0.5rem 0.6rem;
+  border-radius: 999px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mobile-tab:hover {
+  background: var(--wash);
 }
 
 .mobile-tab.active {
-  border-color: var(--ink);
-  color: var(--ink);
-  background: var(--wash);
+  background: var(--ink);
+  color: var(--paper);
 }
 
 @media (min-width: 900px) {
