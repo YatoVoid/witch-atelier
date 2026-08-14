@@ -72,20 +72,12 @@ function getImage(src) {
   return img;
 }
 
-// The sigil artwork was flattened onto solid white when it was drawn, no
-// transparency. Multiply blending makes white pixels disappear into
-// whatever's behind them (white times any color is that color) while
-// keeping the dark ink strokes dark, so the glyph reads as ink on the
-// paper instead of an opaque square sitting on top of it.
 function drawSigil(ctx, cx, cy, r, sigilId) {
   const sigil = getSigil(sigilId);
   if (!sigil) return;
   const img = getImage(sigil.image);
   if (img.complete && img.naturalWidth > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
     ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
-    ctx.restore();
   }
 }
 
@@ -161,7 +153,6 @@ function drawSigilPulse(ctx, cx, cy, r, sigilId, t) {
   const rr = r * (1 + ease * 0.25);
   ctx.save();
   ctx.globalAlpha = ease * 0.6;
-  ctx.globalCompositeOperation = "multiply";
   ctx.drawImage(img, cx - rr, cy - rr, rr * 2, rr * 2);
   ctx.restore();
 }
