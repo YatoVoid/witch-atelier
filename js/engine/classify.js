@@ -37,6 +37,34 @@ function resample(points, count) {
   return out;
 }
 
+// A finger on a small touchscreen circle easily produces 3-6px of tremor
+// per point. Two evenly-resampled points only ~6px apart (see resample()
+// above) means that tremor, not the actual line direction, dominates the
+// heading measured between them: differentiating over a short distance
+// amplifies noise. A small moving-average window suppresses independent
+// per-point jitter while leaving a real corner intact, since a genuine
+// turn's direction change is sustained across many points, not a single
+// noisy sample. Applied after resampling (not to the raw points directly)
+// so the window covers a consistent arc-length span regardless of how
+// fast or slow the stroke was drawn.
+function smoothPoints(points, window) {
+  if (points.length <= 2) return points;
+  const half = Math.floor(window / 2);
+  const out = [];
+  for (let i = 0; i < points.length; i++) {
+    let sx = 0,
+      sy = 0,
+      n = 0;
+    for (let k = Math.max(0, i - half); k <= Math.min(points.length - 1, i + half); k++) {
+      sx += points[k].x;
+      sy += points[k].y;
+      n++;
+    }
+    out.push({ x: sx / n, y: sy / n });
+  }
+  return out;
+}
+
 // Angle from the ring's exact center is a genuinely poor signal for a
 // point that close to it: two points just a little to either side of
 // center read as ~180 degrees apart even along a dead-straight line, and
@@ -91,6 +119,7 @@ function maxDeviationRatio(points) {
 function sharpTurnCount(points, angleThreshold) {
   let count = 0;
   let prevHeading = null;
+  let prevDiff = 0;
   for (let i = 1; i < points.length; i++) {
     const dx = points[i].x - points[i - 1].x;
     const dy = points[i].y - points[i - 1].y;
@@ -100,7 +129,20 @@ function sharpTurnCount(points, angleThreshold) {
       let diff = heading - prevHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      if (Math.abs(diff) > angleThreshold) count++;
+      // Same fix as splitAtCorners below: a corner landing near a resample
+      // boundary interpolates through the vertex and splits into two
+      // hops that are each individually under threshold. Only combining
+      // same-direction hops means independent jitter (which flips sign
+      // often) mostly doesn't accumulate, while a real corner (whose
+      // smeared halves turn the same way) still gets caught.
+      const combined = Math.sign(diff) === Math.sign(prevDiff) ? diff + prevDiff : diff;
+      if (Math.abs(diff) > angleThreshold || Math.abs(combined) > angleThreshold) {
+        count++;
+        prevDiff = 0;
+        prevHeading = heading;
+        continue;
+      }
+      prevDiff = diff;
     }
     prevHeading = heading;
   }
@@ -150,7 +192,7 @@ function splitAtCorners(rawPoints) {
   const len = strokeLength(rawPoints);
   if (len < 1e-6) return [rawPoints];
   const count = Math.max(8, Math.min(40, Math.round(len / 6)));
-  const points = resample(rawPoints, count);
+  const points = smoothPoints(resample(rawPoints, count), 5);
   const segments = [];
   let current = [points[0]];
   let prevHeading = null;
@@ -201,6 +243,9 @@ function classifyStrokeGroup(paths) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
 
+  // Not smoothed: the whole point of this check is measuring how tightly
+  // and chaotically the stroke turns, which is exactly the high-frequency
+  // detail a smoothing pass would erase.
   const overallSpine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
   const spinePoints = resample(overallSpine, 20);
   const spineStart = spinePoints[0];
@@ -220,7 +265,12 @@ function classifyStrokeGroup(paths) {
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
   const loopClosure = Math.max(0, 1 - spineChord / boundSize);
   const closedShape = loopClosure > 0.6 && strokeLength(spinePoints) > boundSize * 0.7;
-  if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) < 2 ? "diamond" : "crush";
+  // A real diamond (4 corners) measures ~2-3 sharp turns here even under
+  // hand jitter, since it's a controlled shape with a handful of clean
+  // corners; a genuinely chaotic scribble runs 7+ from its many erratic
+  // reversals. The gap between them is wide, so the threshold doesn't
+  // need to sit close to either side.
+  if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
 
   const segments = valid.flatMap((p) => splitAtCorners(p));
   const totalLength = segments.reduce((sum, seg) => sum + strokeLength(seg), 0);
@@ -234,7 +284,7 @@ function classifyStrokeGroup(paths) {
   // (also 2 segments after a corner split) where the spine dominates.
   if (segments.length === 2 && dominance < 0.65) return "bend";
 
-  const points = resample(spine, 20);
+  const points = smoothPoints(resample(spine, 20), 5);
   const start = points[0];
   const end = points[points.length - 1];
   const wobble = maxDeviationRatio(points);

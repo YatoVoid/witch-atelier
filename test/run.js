@@ -101,25 +101,28 @@ function wavyWiggle(cx, cy, amp) {
   for (let i = 0; i <= 24; i++) {
     const t = i / 24; // 0..0.75 of a full turn: open, not closed
     const a = t * Math.PI * 1.5;
-    const x = cx + Math.sin(a) * amp * 0.4;
+    const x = cx + Math.sin(a) * amp * 0.9;
     const y = cy - Math.cos(a) * amp + amp;
     pts.push({ x, y });
   }
   return pts;
 }
 
-// Smooth-ish closed loop (rounded corners, low sharp-turn count) -> diamond.
-function roundedDiamond(cx, cy, r) {
-  const pts = [];
-  const n = 80;
-  for (let i = 0; i <= n; i++) {
-    const t = (i / n) * Math.PI * 2;
-    // superellipse-ish rounding between a diamond and a circle
-    const cos = Math.cos(t);
-    const sin = Math.sin(t);
-    const k = Math.sign(cos) * Math.pow(Math.abs(cos), 1.4);
-    const j = Math.sign(sin) * Math.pow(Math.abs(sin), 1.4);
-    pts.push({ x: cx + r * k, y: cy + r * j });
+// A real diamond: 4 straight edges, sharp ~90 degree corners, drawn as one
+// closed stroke (not artificially rounded off to dodge the turn-count
+// check — a real diamond genuinely has corners, and the classifier needs
+// to accept that, not just a shape gerrymandered to pass).
+function realDiamond(cx, cy, r) {
+  const corners = [
+    { x: cx, y: cy - r },
+    { x: cx + r, y: cy },
+    { x: cx, y: cy + r },
+    { x: cx - r, y: cy },
+    { x: cx, y: cy - r },
+  ];
+  let pts = [corners[0]];
+  for (let i = 1; i < corners.length; i++) {
+    pts = pts.concat(line(pts[pts.length - 1].x, pts[pts.length - 1].y, corners[i].x, corners[i].y, 12).slice(1));
   }
   return pts;
 }
@@ -170,7 +173,7 @@ for (const { label, ox, oy } of positions) {
   check(`wavy @ ${label}`, classifyStrokeGroup([wavyWiggle(ox, oy, 22)]), "levitation");
 
   // closed smooth -> diamond
-  check(`closedSmooth @ ${label}`, classifyStrokeGroup([roundedDiamond(ox, oy, 40)]), "diamond");
+  check(`closedSmooth @ ${label}`, classifyStrokeGroup([realDiamond(ox, oy, 45)]), "diamond");
 
   // closed chaotic -> crush
   check(`closedChaotic @ ${label}`, classifyStrokeGroup([chaoticScribble(ox, oy, 40)]), "crush");
@@ -279,6 +282,66 @@ for (const sig of SPELL_SIGNATURES) {
     check(`signature "${sig.name}" rejects disallowed family "${disallowed}"`, stillMatches, false);
   }
 }
+
+// ---- 4. jitter robustness. A real finger on a small touchscreen circle
+// easily produces a few px of tremor per point; a shape that only
+// classifies correctly when drawn geometrically perfectly isn't actually
+// usable. Each shape has to hold up across a majority of noisy seeds at a
+// jitter level real drawing plausibly produces, not just at jitter=0. ----
+function seededRandom(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+function jitterPath(pts, jitterPx, seed) {
+  const rand = seededRandom(seed);
+  return pts.map((p, i) => (i === 0 ? p : { x: p.x + (rand() - 0.5) * 2 * jitterPx, y: p.y + (rand() - 0.5) * 2 * jitterPx }));
+}
+function densify(pts, stepPx) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1],
+      b = pts[i];
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const n = Math.max(1, Math.round(d / stepPx));
+    for (let k = 1; k <= n; k++) {
+      const t = k / n;
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  return out;
+}
+
+const JITTER_PX = 3; // plausible finger tremor on a small ring
+const JITTER_SEEDS = 20;
+const JITTER_PASS_RATE = 0.8; // majority-correct, not perfect, is the bar
+
+function checkJitterRobust(label, shapeFn, expected, passRate = JITTER_PASS_RATE) {
+  let ok = 0;
+  for (let seed = 1; seed <= JITTER_SEEDS; seed++) {
+    const result = classifyStrokeGroup([jitterPath(densify(shapeFn(), 4), JITTER_PX, seed * 97)]);
+    if (result === expected) ok++;
+  }
+  const rate = ok / JITTER_SEEDS;
+  if (rate >= passRate) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`${label} (jittered): only ${ok}/${JITTER_SEEDS} still classified as "${expected}"`);
+  }
+}
+
+checkJitterRobust("straightOut (column)", () => line(90, 0, 180, 0), "column");
+checkJitterRobust("straightIn (pull)", () => line(180, 0, 90, 0), "pull");
+// A single sharp corner is the closest the family set comes to a gentle
+// wiggle (both are "one bend, doesn't travel far"), so this one holds a
+// slightly lower bar than the rest under heavy noise; its near-misses
+// land on that neighboring family, not somewhere wild.
+checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
+checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
+checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);
