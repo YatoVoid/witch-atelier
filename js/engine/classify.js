@@ -1,27 +1,11 @@
-// Reads the shape of a drawn sign (one or more strokes, since most of the
-// reference glyphs are a few short parts combined, not one continuous
-// line) and picks which family it belongs to.
-//
-// Two different techniques, used for what each is actually good at:
-//
-// - Closedness (does the stroke loop back on itself) and ring-relative
-//   spread (does it sweep across a wide angle around the ring's center)
-//   are properties of the RAW, undistorted geometry, so they're read
-//   directly off it, same as before.
-// - Everything else (is this basically a straight line, a single corner,
-//   a multi-turn zigzag, or a gentle wiggle) is answered by comparing the
-//   stroke, after normalizing away its position/scale/rotation, against a
-//   small set of reference templates and taking the closest match. This
-//   is the $1 Unistroke Recognizer approach (Wobbrock, Wilson & Li,
-//   2007): matching the overall shape as a point cloud is far less
-//   sensitive to hand tremor and to decoration (an arrowhead, a crossbar,
-//   several strokes radiating from one point) than counting corners and
-//   comparing segment lengths ever was, because averaging distance over
-//   many points cancels noise a single threshold on one measurement
-//   can't. classifyStrokeGroup() takes an optional second argument of
-//   extra templates (personal corrections saved via the in-app training
-//   flow, layered on top of the shipped set in js/data/templates.js)
-//   without needing a network call or a trained model file.
+// Classifies a drawn sign (one or more strokes) into a shape family.
+// Closedness and ring-relative angular spread are read off the raw
+// geometry. Everything else (straight line, single corner, zigzag, gentle
+// wiggle) is decided by normalizing the stroke's position/scale/rotation
+// and comparing it to reference templates ($1 Unistroke Recognizer:
+// Wobbrock, Wilson & Li, 2007). classifyStrokeGroup()'s second argument is
+// an optional pool of extra templates (personal corrections from the
+// in-app training flow, layered on top of js/data/templates.js).
 function strokeLength(points) {
   let total = 0;
   for (let i = 1; i < points.length; i++) {
@@ -30,9 +14,8 @@ function strokeLength(points) {
   return total;
 }
 
-// Fast strokes produce sparse points, slow strokes produce dense ones.
-// Resampling to even arc-length spacing keeps shape comparison
-// independent of how fast the stroke was drawn.
+// Resamples to even arc-length spacing so shape comparison doesn't depend
+// on how fast the stroke was drawn.
 function resample(points, count) {
   const total = strokeLength(points);
   if (total < 1e-6) return points;
@@ -52,30 +35,17 @@ function resample(points, count) {
     }
     covered += segLen;
   }
-  // The loop above can fill `out` to exactly `count` on its own (when the
-  // last target lands exactly on the final source point); appending
-  // unconditionally would then overshoot to count+1. Every caller now
-  // relies on getting back exactly `count` points (shape-template
-  // comparison needs equal-length arrays to compare point by point).
+  // Callers rely on getting back exactly `count` points for point-by-point
+  // comparison; the loop above can already reach that on its own.
   if (out.length < count) out.push(points[points.length - 1]);
   return out;
 }
 
-// Angle from the ring's exact center is a genuinely poor signal for a
-// point that close to it: two points just a little to either side of
-// center read as ~180 degrees apart even along a dead-straight line,
-// purely from proximity to the origin rather than any real spread.
-// Sized small on purpose: spread is now only ever consulted when the
-// shape doesn't already confidently match straight/bend/bolt/wavy (see
-// the confident-match check below), so it no longer has to be large
-// enough to single-handedly rule out a whole peak or zigzag drawn near
-// center the way it once did. A large dead zone caused its own real bug:
-// a genuinely small Dispersion/Convergence arc, radius comfortably under
-// the old 60px, drawn anywhere near center (a small sign can easily land
-// there) had every one of its points excluded, so it could never read as
-// a wide sweep at all, no matter how it was drawn. Kept only large enough
-// to blot out points sitting almost exactly on the origin, which really
-// don't carry a reliable angle.
+// Points this close to the ring's center have unreliable angles (a little
+// jitter to either side of center reads as ~180 degrees apart on a
+// straight line). Kept small since spread is only checked once shape
+// matching already failed to find a confident straight/bend/bolt/wavy
+// match, so it doesn't need to rule out a whole peak or zigzag on its own.
 const SPREAD_DEAD_ZONE = 20;
 
 function angularSpread(points) {
@@ -90,9 +60,8 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
-// Sharp direction reversals within a single stroke. The angle threshold
-// is deliberately high (~77 degrees) so a smooth wave, which still turns
-// but gradually, doesn't register as a zigzag.
+// Counts sharp direction reversals within a stroke. Threshold is
+// deliberately high (~77 degrees) so a smooth wave doesn't register as one.
 function sharpTurnCount(points, angleThreshold) {
   let count = 0;
   let prevHeading = null;
@@ -106,12 +75,10 @@ function sharpTurnCount(points, angleThreshold) {
       let diff = heading - prevHeading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      // A corner landing near a resample boundary interpolates through the
-      // vertex and splits into two hops that are each individually under
-      // threshold. Only combining same-direction hops means independent
-      // jitter (which flips sign often) mostly doesn't accumulate, while a
-      // real corner (whose smeared halves turn the same way) still gets
-      // caught.
+      // A corner near a resample boundary can split into two hops each
+      // under threshold on their own. Combining only same-direction hops
+      // catches that without letting independent jitter (which flips sign)
+      // accumulate.
       const combined = Math.sign(diff) === Math.sign(prevDiff) ? diff + prevDiff : diff;
       if (Math.abs(diff) > angleThreshold || Math.abs(combined) > angleThreshold) {
         count++;
@@ -126,28 +93,16 @@ function sharpTurnCount(points, angleThreshold) {
   return count;
 }
 
-// Simple geometry can only tell families of shape apart, not which of the
-// 24 named signs you meant within a family (a straight outward line could
-// be Column, Crosshair, or Enlarge; there's no shape difference between
-// them in the source material either, they're distinguished by context).
-// classifyStrokeGroup() returns the family's most common member as a
-// default. Each sign row in the UI offers the rest of its family as
-// alternatives, so the shape narrows it down and you make the final call,
-// rather than the app pretending to detect a distinction that isn't there.
-// Direction's reference glyph (assets/signs/direction.webp) is a bare "^"
-// peak, no straight spine at all, unlike Pull's own glyph (a mostly
-// straight line with a small arrowhead). It reads geometrically as a
-// single sharp corner, the same shape as Bend, not as "mostly straight",
-// so it belongs with Bend/Bolt: drawing a peak-shaped sign never used to
-// offer Direction as an option at all, since the dropdown only offers
-// alternatives within whichever family the shape actually got classified
-// into, and a peak was never going to classify as straightIn no matter
-// how the geometry was read.
-// Family membership follows each sign's actual glyph shape (assets/signs),
-// not its effect. Vision (radial burst) and Dancing Puppet (ring of loops)
-// stay under "wavy" as a known gap: neither matches any family's
-// detection reliably, so forcing a bucket on them would just be a
-// differently-wrong coincidence, liable to shift again on template changes.
+// Geometry only tells families apart, not which of the 24 named signs was
+// meant within a family (a straight outward line could be Column,
+// Crosshair, or Enlarge; the source material doesn't distinguish them by
+// shape either). classifyStrokeGroup() returns the family's most common
+// member as a default; the sign row's dropdown offers the rest of the
+// family as alternatives. Bucket membership follows each sign's actual
+// glyph shape (assets/signs), not its effect: Direction's glyph is a bare
+// peak, so it sits with Bend/Bolt rather than Pull despite pulling inward.
+// Vision and Dancing Puppet stay under "wavy" as a known gap: neither
+// glyph matches any family's detection reliably.
 const SIGN_BUCKETS = {
   straightOut: ["column", "crosshair", "enlarge", "levitation"],
   straightIn: ["pull"],
@@ -216,10 +171,9 @@ function rotateBy(points, theta) {
 }
 
 // Resample -> recenter -> rescale -> rotate so the first point sits due
-// east of center. That last step (the "indicative angle") gives every
-// normalized shape a consistent starting orientation so the rotation
-// search below only has to correct for minor variation around it, not
-// search the full circle.
+// east of center (the "indicative angle"), giving every shape a
+// consistent starting orientation so the rotation search below only
+// needs to correct for minor variation, not the full circle.
 function normalizeForMatching(rawPoints) {
   const resampled = resample(rawPoints, TEMPLATE_SAMPLE_COUNT);
   const centered = translateToOrigin(resampled);
@@ -235,9 +189,8 @@ function meanPointDistance(a, b) {
 }
 
 // Golden section search for the rotation (within +/-45 degrees of the
-// indicative-angle alignment already applied) that best aligns the
-// candidate with a template, so two shapes that are the same but drawn a
-// little differently rotated don't get penalized for it.
+// indicative-angle alignment already applied) that best aligns candidate
+// and template.
 function bestAlignedDistance(candidate, template) {
   const phi = 0.5 * (Math.sqrt(5) - 1);
   let a = -Math.PI / 4,
@@ -276,9 +229,9 @@ function normalizedBuiltinTemplates() {
   return builtinTemplateCache;
 }
 
-// Matches a (possibly multi-stroke, points concatenated in drawing order)
-// shape against the shipped templates plus any extra ones (personal
-// corrections from localStorage, already normalized) passed in.
+// Matches a shape (points from one or more strokes, concatenated in
+// drawing order) against the shipped templates plus any extra ones
+// (already-normalized personal corrections) passed in.
 function matchShapeTemplate(rawPoints, extraTemplates) {
   const candidate = normalizeForMatching(rawPoints);
   const pools = [normalizedBuiltinTemplates()];
@@ -300,15 +253,9 @@ function matchShapeTemplate(rawPoints, extraTemplates) {
   return { label: bestLabel, distance: bestDistance };
 }
 
-// A sign is one or more strokes drawn close together in time (see app.js's
-// grouping window). Most of the reference glyphs are a short spine plus
-// one or two small ticks or caps, whether that's drawn as separate
-// strokes or as one continuous line that turns a corner.
-// Requires 3+ strokes converging on a shared point: a plain corner or
-// zigzag only ever joins 2 strokes, and any lone straight segment
-// trivially matches "straight" on its own, so agreement alone can't
-// tell a real multi-arm hub (a crosshair) apart from an ordinary
-// multi-stroke shape.
+// True if 3+ strokes converge on a shared point (a crosshair-style hub).
+// Requires 3+ specifically because a plain corner or zigzag only ever
+// joins 2 strokes.
 function radiatesFromSharedHub(strokes) {
   if (strokes.length < 3) return false;
   const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
@@ -364,27 +311,15 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
   const loopClosure = Math.max(0, 1 - spineChord / boundSize);
   const closedShape = loopClosure > 0.6 && strokeLength(spinePoints) > boundSize * 0.7;
-  // A real diamond (4 corners) measures ~2-3 sharp turns here even under
-  // hand jitter, since it's a controlled shape with a handful of clean
-  // corners; a genuinely chaotic scribble runs 7+ from its many erratic
-  // reversals. The gap between them is wide, so the threshold doesn't
-  // need to sit close to either side.
+  // A real diamond measures ~2-3 sharp turns here even under hand jitter;
+  // a chaotic scribble runs 7+.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
 
-  // Direction (outward/inward) for whatever family this turns out to be.
-  // Read from the longest single stroke, not from "first stroke's start
-  // to last stroke's end": a decoration (a cap, a tick, an arrowhead
-  // flourish) is often drawn as its own separate stroke, and whichever
-  // end of the gesture it happens to land nearest to has nothing to do
-  // with which way the sign was actually drawn. A decoration landing
-  // near the inner end, added after an unambiguously outward main line,
-  // used to read the whole sign as drawn inward, since the farthest
-  // point the main line actually reached was never even considered, only
-  // the first and last strokes' own endpoints were. The longest stroke is
-  // the actual gesture; decorations shouldn't be able to override it.
-  // Endpoints are averaged over a few points rather than trusted from a
-  // single raw one, since hand tremor swings a lone point's position more
-  // than it swings an average of several.
+  // Outward/inward direction is read from the longest single stroke, not
+  // first-to-last endpoint, so a decoration drawn as its own stroke (an
+  // arrowhead, a cap) can't override which way the actual gesture went.
+  // Endpoints are averaged over a few points since hand tremor swings a
+  // single raw point more than it swings an average of several.
   function averagedEndpoint(points, fromEnd) {
     const n = Math.min(4, points.length);
     const slice = fromEnd ? points.slice(-n) : points.slice(0, n);
@@ -402,19 +337,18 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const overallEnd = averagedEndpoint(mainStroke, true);
   const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
 
-  // mainStroke alone avoids a decoration (an arrowhead barb) creating a
-  // false "jump" when concatenated; used once it's most of the ink.
-  // Below that, concatenating equal-length strokes has its own jump
-  // problem (a crosshair's arms rarely share an exact pixel), so a
-  // genuine multi-arm hub is matched per-arm instead of concatenated.
+  // Matched against mainStroke alone once it's most of the ink, so a
+  // decoration (an arrowhead barb) doesn't create a false "jump" when
+  // concatenated. Below that ratio, a genuine multi-arm hub is matched
+  // per-arm instead, since equal-length strokes have the same jump
+  // problem (a crosshair's arms rarely share an exact pixel).
   let match = null;
   if (strokeLength(mainStroke) / totalStrokeLength > 0.65) {
     match = matchShapeTemplate(mainStroke, extraTemplates);
   } else if (radiatesFromSharedHub(valid)) {
-    // Majority vote across arms, not each arm re-cleared against the
-    // stricter single-stroke confidence bar: jitter on a ~40px arm
-    // routinely pushes it just past that bar without the arm's shape
-    // actually being ambiguous.
+    // Majority vote across arms rather than each arm against the stricter
+    // single-stroke confidence bar, which jitter on a short arm routinely
+    // fails without the arm's shape actually being ambiguous.
     const perStroke = valid.map((s) => matchShapeTemplate(s, extraTemplates));
     const counts = {};
     for (const m of perStroke) counts[m.label] = (counts[m.label] || 0) + 1;
@@ -427,39 +361,22 @@ function classifyStrokeGroup(paths, extraTemplates) {
     match = matchShapeTemplate(valid.flat(), extraTemplates);
   }
 
-  // A confident shape match (a clean corner, a clean zigzag) is checked
-  // before wide sweep, not after: a peak or a zigzag genuinely can span a
-  // wide angle as seen from the ring's center once its arms are drawn
-  // long enough, the same way a straight line passing near center does,
-  // even though it's obviously not a smooth sweep around the ring. Only
-  // when the shape doesn't clearly match any single family (its distance
-  // to the closest template is still fairly large) is spread worth
-  // checking at all: a genuine arc doesn't look like a clean straight
-  // line, corner, or zigzag either, so this doesn't cost real wide-sweep
-  // signs anything. Threshold set from the actual gap measured between
-  // the two: every tested straight/bend/bolt/wavy shape, including under
-  // hand tremor, matched under 0.06; every tested wide sweep of a
-  // reasonable width matched no better than roughly that.
+  // Angular spread is only checked once shape matching fails to find a
+  // confident family (a peak or zigzag can span a wide angle from the
+  // ring's center once its arms are long enough, without being a sweep).
+  // Threshold is the measured gap: every tested straight/bend/bolt/wavy
+  // shape matched under 0.06, every tested wide sweep matched no better.
   const CONFIDENT_SHAPE_MATCH = 0.06;
   if (match.distance >= CONFIDENT_SHAPE_MATCH) {
-    // Measured from the longest single stroke alone, not every stroke
-    // combined, same reasoning as above: a wide sweep is described (and
-    // drawn) as one continuous arc, not a dominant arc plus a separate
-    // decoration, so there's no real multi-stroke case this loses. What
-    // it fixes is a straight line with a decoration landing at a
-    // noticeably different bearing from the ring's center than the main
-    // line, which used to be able to drag the combined point cloud's
-    // angular spread over threshold even though the main line's own
-    // bearing barely varies.
+    // Measured from mainStroke alone: a wide sweep is one continuous arc,
+    // not a dominant arc plus a decoration at a different bearing.
     const spread = angularSpread(mainStroke);
     if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
   }
 
   if (match.label === "straight") {
     // Checked before direction: a symmetric 4-arm hub has no reliable
-    // "outward" arm to measure radialDelta from (whichever arm is
-    // marginally longest is close to a coin flip), and Crosshair has no
-    // inward variant to confuse with Pull anyway.
+    // "outward" arm to measure radialDelta from.
     if (radiatesFromSharedHub(valid)) return "crosshair";
     return radialDelta >= 0 ? "column" : "pull";
   }

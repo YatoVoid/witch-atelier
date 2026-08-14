@@ -17,13 +17,8 @@
   box-sizing: border-box;
 }
 
-/* The browser's own [hidden] rule loses any cascade tie against an
-   author rule on the same element (an unconditional `display: flex`/
-   `grid`/etc. beats it even though `hidden` was clearly meant to win),
-   which has silently broken toggled-visibility UI here twice now
-   (the shape-guide dropdown once, a training picker once). Settling it
-   globally here instead of remembering to scope every future
-   `display` declaration around it by hand. */
+/* [hidden] loses any cascade tie against an author `display` rule on the
+   same element, so it's forced here rather than scoped per rule. */
 [hidden] {
   display: none !important;
 }
@@ -120,9 +115,7 @@ h2:first-child {
   padding: 1rem 1.5rem 3rem;
 }
 
-/* Below 900px the three panels are tabbed (js/ui.js) instead of stacked,
-   so getting from drawing to the readout doesn't mean scrolling past a
-   full panel of sigil/sign chips first. */
+/* Below 900px the three panels are tabbed (js/ui.js) instead of stacked. */
 .mobile-tabs {
   display: flex;
   gap: 0.4rem;
@@ -164,7 +157,7 @@ h2:first-child {
     display: none;
   }
   .workbench {
-    grid-template-columns: 280px minmax(320px, 1fr) 340px;
+    grid-template-columns: 310px minmax(320px, 1fr) 310px;
     align-items: start;
   }
   /* [hidden] only encodes the active mobile tab; desktop shows all three. */
@@ -177,8 +170,6 @@ h2:first-child {
 }
 
 @media (max-width: 899.98px) {
-  /* Keep Cast/Ring/Clear reachable without scrolling past the sign list
-     while the Circle tab is open. */
   .circle-actions {
     position: sticky;
     bottom: 0;
@@ -229,12 +220,9 @@ h2:first-child {
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1.25rem;
-  /* Grid/flex items default to min-width:auto, sized to fit their content
-     on one line even where flex-wrap should let it wrap (the sign-row's
-     dropdown/slider/remove button, for instance). Without this, a wide
-     enough row pushes the whole panel past the viewport instead of
-     wrapping, dragging the canvas (sized off this panel's width) and the
-     page along with it into horizontal scroll. */
+  /* Without this, flex/grid items default to min-width:auto and a wide
+     row (sign-row's dropdown/slider/remove button) pushes the panel past
+     the viewport instead of wrapping. */
   min-width: 0;
 }
 
@@ -475,12 +463,9 @@ h2:first-child {
   font-size: 0.85rem;
 }
 
-/* Grid on desktop; the mobile @media block above (max-width: 899.98px)
-   switches this to a wrapping flex row instead. That rule comes earlier
-   in the file, so display: grid has to live inside its own min-width
-   query rather than the unqualified base rule above, otherwise it wins
-   the cascade on ties (same specificity, later source) and silently
-   cancels the mobile wrap behavior regardless of viewport width. */
+/* Grid on desktop; scoped to its own query (rather than the unqualified
+   .sign-row rule above) so it doesn't win the cascade on the mobile
+   wrapping flex rule by source order. */
 @media (min-width: 900px) {
   .sign-row {
     display: grid;

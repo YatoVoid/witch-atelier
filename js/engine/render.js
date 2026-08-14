@@ -1,12 +1,9 @@
-// Canvas rendering. Signs are drawn from the actual points the user's stroke
-// recorded, nothing synthetic, smoothed with a standard quadratic-through-
-// midpoints pass and a soft shadow for ink bleed instead of faking texture
-// with random jitter.
+// Canvas rendering. Signs are drawn from the actual points the user's
+// stroke recorded, smoothed with a quadratic-through-midpoints pass and a
+// soft shadow for ink bleed.
 //
-// INK is sampled from the actual reference artwork's dominant color
-// (assets/sigils/fire.webp, rgb(108,0,0)) so drawn strokes and the cast
-// animation match the hand-drawn glyphs instead of defaulting to plain
-// black.
+// INK is sampled from the reference artwork's dominant color
+// (assets/sigils/fire.webp, rgb(108,0,0)).
 const INK = "#6c0000";
 const INK_RGB = "108, 0, 0";
 
@@ -54,10 +51,8 @@ function drawRing(ctx, cx, cy, r, complete) {
   ctx.setLineDash([]);
 }
 
-// Sigil glyphs are drawn images (the user's own reconstructions of the
-// canon glyphs), not procedural shapes. Loaded lazily and cached; the
-// redraw callback fires once an image finishes loading so it appears
-// without waiting on the next unrelated state change.
+// Sigil glyphs are drawn images, loaded lazily and cached; the redraw
+// callback fires once an image finishes loading so it appears immediately.
 const imageCache = {};
 let onImageLoaded = null;
 function setImageLoadedCallback(fn) {
@@ -81,9 +76,8 @@ function drawSigil(ctx, cx, cy, r, sigilId) {
   }
 }
 
-// A sign is one or more strokes (see classify.js: most reference glyphs are
-// a spine plus a tick or two, not one continuous line), so instance.paths
-// is an array of point lists, each rendered as its own ink stroke.
+// instance.paths is an array of point lists (one per stroke), each
+// rendered as its own ink stroke.
 function drawSign(ctx, cx, cy, instance) {
   if (!instance.paths || instance.paths.length === 0) return;
   ctx.save();

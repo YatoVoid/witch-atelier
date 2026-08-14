@@ -45,11 +45,9 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const netsToZero = acc.directional > EPSILON && magnitude < instabilityThreshold;
 
   // Three or more directional signs spread most of the way around the ring
-  // net to zero by construction (they're pushing outward in every
-  // direction at once), the same way Light Beam's four Column signs at
-  // north/east/south/west do. That's a beacon, not a mistake, so it
-  // shouldn't read as a misfire the way two signs directly opposing each
-  // other does.
+  // net to zero by construction (pushing outward in every direction at
+  // once, like Light Beam's four Column signs). That's a beacon, not a
+  // misfire, unlike two signs directly opposing each other.
   const directionalSigns = signs.filter((s) => DIRECTIONAL_FAMILIES.includes(familyKeyOf(s.archetypeId)));
   let radiantCoverage = 0;
   if (directionalSigns.length >= 3) {
@@ -102,9 +100,6 @@ function buildLabel(sigil, params, columnsCancel) {
   parts.push(params.hasDirection ? `${Vector.compassLabel(params.direction)} direction` : "no directional bias");
   if (params.spreadRatio > 0.5) parts.push("wide spread");
   if (params.sustainRatio > 0.5) parts.push("sustained");
-  // A single sign tops out near 0.7 intensity, so the old 1.2 threshold
-  // was unreachable by one sign regardless of size; lowered to match
-  // spreadRatio/sustainRatio's 0.5.
   if (params.intensity > 0.5) parts.push("high intensity");
   return parts.join(", ");
 }

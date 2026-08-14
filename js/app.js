@@ -13,15 +13,9 @@
   };
 
   // First-visit calibration: walks through drawing several examples of
-  // each shape the point-cloud matcher trains on (see js/training.js),
-  // saving each as a personal template up front instead of only ever
-  // learning from corrections after a misread. Offered once, tracked in
-  // localStorage the same way the grimoire and training examples already
-  // are (there's no server, so "first time without cookies" means "no
-  // local data yet" here) -- shown only if there's no saved training data
-  // AND it hasn't been explicitly dismissed, so skipping it once doesn't
-  // mean losing the option forever if the user calibrates by correcting
-  // instead and later wants the guided version.
+  // each shape the point-cloud matcher trains on (see js/training.js).
+  // Shown only if there's no saved training data and it hasn't been
+  // dismissed, so skipping it once doesn't lose the option permanently.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
   const CALIBRATION_SHAPES = [
     { label: "straight", name: "Straight", instructions: "Draw a straight line. Any length, any direction." },
@@ -33,11 +27,9 @@
   const CALIBRATION_REPS = 5; // examples collected per shape
   let calibration = null; // { shapeIndex, rep } while active, else null
 
-  // Every sign the "wrong reading?" panel can set. Built from
-  // SIGN_BUCKETS, not a separate hardcoded list: a second copy of family
-  // membership drifted out of sync with classify.js once already (this
-  // list kept pointing "Wavy" at levitation after levitation moved to
-  // straightOut).
+  // Every sign the "wrong reading?" panel can set, built from
+  // SIGN_BUCKETS rather than a separate list, so it can't drift out of
+  // sync with classify.js's family membership.
   const FAMILY_TRAIN_LABEL = { straightOut: "straight", straightIn: "straight", wavy: "wavy" };
   const SIGN_TRAIN_LABEL_OVERRIDE = { bend: "bend", direction: "bend", bird: "bend", bolt: "bolt" };
   const CORRECTION_FAMILIES = Object.keys(SIGN_BUCKETS).flatMap((familyKey) =>
@@ -53,10 +45,6 @@
     })
   );
 
-  // 700ms wasn't enough room to reposition between the parts of a
-  // deliberate multi-stroke sign (moving your hand/finger to line up the
-  // next stroke takes longer than that), so the first stroke alone was
-  // locking in as the whole sign before the rest got drawn.
   const GROUP_WINDOW_MS = 1400; // pause this long to lock in a multi-part sign
 
   let drawing = false;
@@ -153,12 +141,9 @@
   });
 
   // ---- Freehand stroke capture: draw anywhere, any shape, any length ----
-  // No archetype is picked beforehand. A sign can be one or more strokes:
-  // most of the reference glyphs are a spine plus a tick or two, not one
-  // continuous line, so after a stroke ends there's a short pause (below)
-  // during which another stroke starting counts as part of the same sign.
-  // Only once that pause elapses with nothing new does the group classify
-  // and lock in, in engine/classify.js.
+  // A sign can be one or more strokes; after a stroke ends there's a short
+  // pause during which another stroke counts as part of the same sign.
+  // Once that pause elapses, the group classifies and locks in (classify.js).
   canvas.addEventListener("pointerdown", (e) => {
     if (groupTimer) {
       clearTimeout(groupTimer);
@@ -184,11 +169,8 @@
   const lastDrawnEl = document.getElementById("last-drawn");
   let groupPaths = [];
 
-  // "Read as: ..." describes whichever sign was drawn most recently, so a
-  // correction (the family dropdown, or the "wrong reading?" panel) only
-  // updates it when it's correcting that same sign -- otherwise it stayed
-  // frozen on the old reading even after the fix, which reads as though
-  // the fix hadn't taken.
+  // Only updates "Read as: ..." when the correction is for the
+  // most-recently-drawn sign, so an older correction doesn't overwrite it.
   function refreshLastDrawnIfCurrent(instance) {
     if (state.signs[state.signs.length - 1] !== instance) return;
     const archetype = getArchetype(instance.archetypeId);
@@ -331,13 +313,9 @@
 
   // ---- Placed signs list (fine control + accessible alternative to drawing) ----
   const signList = document.getElementById("sign-list");
-  // Correcting a reading calls renderSignList() to reflect the new
-  // archetype in the thumb/label/select, but that wipes and rebuilds
-  // every row from scratch, which would otherwise slam the just-opened
-  // correction panel shut and erase the confirmation message before
-  // either ever painted. Keyed by sign instance (not index, which shifts
-  // when a sign is removed) so the open/confirmed panel stays attached to
-  // the right sign across a re-render.
+  // renderSignList() rebuilds every row from scratch, so open/confirmed
+  // panel state lives here instead, keyed by sign instance (not index,
+  // which shifts when a sign is removed) so it survives the rebuild.
   const correctionPanelState = new Map();
   function renderSignList() {
     signList.innerHTML = "";
@@ -434,8 +412,6 @@
       entry.className = "sign-entry";
       entry.appendChild(row);
 
-      // Lists every sign directly (not just the family), so picking the
-      // right one doesn't need the dropdown above as a second step.
       const panelState = correctionPanelState.get(instance) || { open: false, message: null };
 
       const toggleBtn = document.createElement("button");
@@ -523,9 +499,7 @@
     `;
   }
 
-  // ---- Cast: only fires with a closed ring, same rule the readout already
-  // warns about ("Ring is open, spell won't activate"), so Cast now
-  // actually honors it instead of playing the animation regardless.
+  // ---- Cast: only fires with a closed ring ----
   const castBtn = document.getElementById("cast-btn");
   castBtn.addEventListener("click", () => {
     if (!state.ringComplete) return;
@@ -616,9 +590,7 @@
   });
 
   // ---- Spellbook gallery ----
-  // Recognized spells (those with a SPELL_SIGNATURES entry) sort first so
-  // what the app can actually detect from a drawn ring isn't buried among
-  // the rest, which are image-and-name reference only.
+  // Recognized spells (those with a SPELL_SIGNATURES entry) sort first.
   const spellbookEl = document.getElementById("spellbook");
   const spellbookCountEl = document.getElementById("spellbook-count");
   const spellbookSearchEl = document.getElementById("spellbook-search");

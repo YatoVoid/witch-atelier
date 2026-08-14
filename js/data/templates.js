@@ -1,32 +1,20 @@
-// Baseline shape templates for the point-cloud recognizer in classify.js,
-// modeled on the $1 Unistroke Recognizer (Wobbrock, Wilson & Li, 2007): a
-// drawn stroke is normalized for position, scale, and rotation and then
-// matched against whichever of these it ends up closest to. Because
-// rotation/scale/position are normalized away, one template only needs a
-// handful of representative examples per family, not one for every size
-// or orientation a person might draw it at.
+// Baseline shape templates for the point-cloud recognizer in classify.js
+// ($1 Unistroke Recognizer, Wobbrock, Wilson & Li, 2007): a drawn stroke
+// is normalized for position, scale, and rotation, then matched against
+// whichever of these it ends up closest to. A handful of representative
+// examples per family covers any size or orientation.
 //
-// "straight" includes two real hand-drawn examples (a line with an
-// arrowhead and a separate crossbar; a crosshair drawn as four separate
-// arm strokes) traced from an actual screenshot where the older
-// corner-counting classifier misread both, since a decorated or
-// multi-stroke real gesture doesn't look like the clean textbook shape a
-// synthetic test would generate. Multi-stroke examples are stored as a
-// single point list (strokes concatenated in drawing order); the
-// resulting "jump" between a stroke's end and the next one's start is
-// just more path for the normalizer to work with, not a special case.
+// Multi-stroke examples (a line with a separate crossbar; a crosshair's
+// four arms) are stored as one point list, strokes concatenated in
+// drawing order; the "jump" between a stroke's end and the next one's
+// start is just more path for the normalizer to work with.
 //
 // "straight", "bend", "bolt", and "wavy" also carry templates traced
-// directly off assets/signs/*.webp (auto-extracted, spot-checked by eye
-// against the source). The old "bend"/"bolt" templates were built from
-// a verbal idea of each shape rather than the art itself and didn't
-// match it (a smooth J-curve vs a sharp V; a diamond mid-spine vs a
-// plain zigzag) -- a structural bug, not a threshold one.
+// directly off assets/signs/*.webp.
 //
-// Add more templates here to improve recognition on a shape it still
-// gets wrong (the in-app training flow instead saves personal corrections
-// to localStorage, layered on top of this shipped set rather than
-// editing it).
+// Add templates here to fix a shape that's still misread; personal
+// corrections from the in-app training flow are saved to localStorage
+// instead, layered on top of this set.
 const SHAPE_TEMPLATES = {
   straight: [
     [
@@ -76,10 +64,9 @@ const SHAPE_TEMPLATES = {
     ],
   ],
   bend: [
-    // Clean symmetric corner, kept alongside the real-glyph templates
-    // below (not replaced): a traced glyph's small asymmetry scores a
-    // clean hand-drawn corner worse than a template built to be exactly
-    // that.
+    // Clean symmetric corner, kept alongside the real glyph templates
+    // below: a traced glyph's small asymmetry scores a clean hand-drawn
+    // corner worse than a template built to be exactly that.
     [
       { x: -35, y: 35 }, { x: -32.1, y: 29.2 }, { x: -29.2, y: 23.3 }, { x: -26.2, y: 17.5 }, { x: -23.3, y: 11.7 },
       { x: -20.4, y: 5.8 }, { x: -17.5, y: 0 }, { x: -14.6, y: -5.8 }, { x: -11.7, y: -11.7 }, { x: -8.7, y: -17.5 },
@@ -126,6 +113,45 @@ const SHAPE_TEMPLATES = {
     [
       { x: 40, y: 16 }, { x: 35, y: 23 }, { x: 35, y: 30 }, { x: 44, y: 39 }, { x: 44, y: 45 }, { x: 39, y: 53 },
       { x: 30, y: 16 }, { x: 25, y: 23 }, { x: 25, y: 30 }, { x: 34, y: 39 }, { x: 34, y: 45 }, { x: 29, y: 53 },
+    ],
+    // The two templates above have amplitude roughly half their travel
+    // distance. A hand-drawn wave crossing open space is usually flatter
+    // (amplitude a fifth or less of the distance covered), and normalized
+    // to a unit bounding box that sits closer to "straight" than either
+    // template above -- these three cover that lower amplitude range.
+    [
+      { x: 0, y: 0 }, { x: 5, y: 10.6 }, { x: 10, y: 15 }, { x: 15, y: 10.6 }, { x: 20, y: 0 }, { x: 25, y: -10.6 },
+      { x: 30, y: -15 }, { x: 35, y: -10.6 }, { x: 40, y: 0 }, { x: 45, y: 10.6 }, { x: 50, y: 15 }, { x: 55, y: 10.6 },
+      { x: 60, y: 0 }, { x: 65, y: -10.6 }, { x: 70, y: -15 }, { x: 75, y: -10.6 }, { x: 80, y: 0 }, { x: 85, y: 10.6 },
+      { x: 90, y: 15 }, { x: 95, y: 10.6 }, { x: 100, y: 0 },
+    ],
+    [
+      { x: 0, y: 0 }, { x: 6, y: 6.4 }, { x: 12, y: 11.3 }, { x: 18, y: 13.8 }, { x: 24, y: 13.3 }, { x: 30, y: 9.9 },
+      { x: 36, y: 4.3 }, { x: 42, y: -2.2 }, { x: 48, y: -8.2 }, { x: 54, y: -12.5 }, { x: 60, y: -14 }, { x: 66, y: -12.5 },
+      { x: 72, y: -8.2 }, { x: 78, y: -2.2 }, { x: 84, y: 4.3 }, { x: 90, y: 9.9 }, { x: 96, y: 13.3 }, { x: 102, y: 13.8 },
+      { x: 108, y: 11.3 }, { x: 114, y: 6.4 }, { x: 120, y: 0 },
+    ],
+    // Same low amplitude, but as straight waypoint-to-waypoint segments
+    // rather than a smooth curve: a mouse or a finger doesn't draw a
+    // perfect sine, and the point-cloud distance to a smooth curve
+    // template is worse than it needs to be for an otherwise clearly
+    // wave-shaped gesture.
+    [
+      { x: 0, y: 0 }, { x: 25, y: -10 }, { x: 50, y: 10 }, { x: 75, y: -10 }, { x: 100, y: 10 }, { x: 125, y: -10 },
+    ],
+    // A coarse zigzag with only 2 turns: net displacement along the
+    // travel axis still outweighs the oscillation across it, so without a
+    // template shaped like this the point cloud matches closer to
+    // "straight" than to any wave template, no matter how much amplitude
+    // those other templates carry. The rotation search below only covers
+    // +/-45 degrees, not a mirror flip, so both left-first and
+    // right-first versions are needed -- a wave started with either hand
+    // motion has to match one of them.
+    [
+      { x: 0, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 60 }, { x: 20, y: 90 }, { x: 0, y: 120 },
+    ],
+    [
+      { x: 0, y: 0 }, { x: -20, y: 30 }, { x: 0, y: 60 }, { x: -20, y: 90 }, { x: 0, y: 120 },
     ],
   ],
 };

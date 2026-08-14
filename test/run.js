@@ -1,10 +1,7 @@
-// Plain-node regression test for the recognition engine: no build step,
-// no dependencies, matching the rest of the project. Loads the app's
-// browser globals (classify.js, signatures.js, etc.) into a vm context the
-// same way index.html loads them as sequential <script> tags, then drives
-// classifyStrokeGroup() and matchSpell() directly with synthetic stroke
-// geometry instead of a real pointer/DOM, since the classifier only ever
-// looks at point arrays.
+// Plain-node regression test for the recognition engine: no build step, no
+// dependencies. Loads the app's browser globals into a vm context the same
+// way index.html loads them as sequential <script> tags, then drives
+// classifyStrokeGroup() and matchSpell() with synthetic stroke geometry.
 //
 // Run with: node test/run.js
 const fs = require("fs");
@@ -94,14 +91,7 @@ function zigzag(cx, cy, spread, steps) {
   return pts;
 }
 
-// A gentle wiggle that loops back near (not exactly onto) its own start:
-// low net displacement relative to path length, matching the README's
-// "doesn't travel far from where it started" without fully closing (a
-// closed loop is a different family entirely).
-// A real back-and-forth wiggle needs multiple soft reversals to actually
-// match the README's "gentle back-and-forth" description (a single bend
-// with one direction change reads as, and should read as, Bend instead,
-// verified against the shipped shape template, not just asserted here).
+// A gentle wiggle that loops back near (not exactly onto) its own start.
 function wavyWiggle(cx, cy, amp) {
   const pts = [];
   const len = amp * 3.2;
@@ -112,10 +102,7 @@ function wavyWiggle(cx, cy, amp) {
   return pts;
 }
 
-// A real diamond: 4 straight edges, sharp ~90 degree corners, drawn as one
-// closed stroke (not artificially rounded off to dodge the turn-count
-// check: a real diamond genuinely has corners, and the classifier needs
-// to accept that, not just a shape gerrymandered to pass).
+// A real diamond: 4 straight edges, sharp ~90 degree corners.
 function realDiamond(cx, cy, r) {
   const corners = [
     { x: cx, y: cy - r },
@@ -143,8 +130,7 @@ function chaoticScribble(cx, cy, r) {
 }
 
 // ---- 1. classifyStrokeGroup: one representative stroke per family, at
-// several positions/angles around the ring, since a couple of past bugs
-// were specifically position- or orientation-dependent. ----
+// several positions/angles around the ring. ----
 const positions = [
   { label: "east", ox: 150, oy: 0 },
   { label: "north", ox: 0, oy: -150 },
@@ -183,10 +169,8 @@ for (const { label, ox, oy } of positions) {
   check(`closedChaotic @ ${label}`, classifyStrokeGroup([chaoticScribble(ox, oy, 40)]), "crush");
 }
 
-// wideOut/wideIn need real angular spread around the ring CENTER (0,0),
-// not just around their own local position, since angularSpread is
-// measured from the origin. Draw an arc that sweeps a wide angle at a
-// fixed radius from ring center.
+// wideOut/wideIn need angular spread around the ring center (0,0), since
+// angularSpread is measured from the origin, not the arc's own position.
 function arcSweep(radius, startDeg, endDeg, outward) {
   const pts = [];
   const n = 24;
@@ -202,25 +186,15 @@ function arcSweep(radius, startDeg, endDeg, outward) {
 check("wideOut (dispersion)", classifyStrokeGroup([arcSweep(90, -70, 70, true)]), "dispersion");
 check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]), "convergence");
 
-// A peak's own arms subtend a genuinely wide angle from the ring center
-// once they're drawn long enough, the same way a straight line passing
-// near center does, without being any less clearly a single sharp
-// corner. Confident shape matches are checked before angular spread for
-// exactly this: a wide-armed Bend used to misread as Dispersion once its
-// arms were long enough to push spread over threshold, unfixable by any
-// amount of correcting the family, since that branch returned before the
-// shape matcher (and any trained correction) ever ran.
+// A peak's arms can subtend a wide angle from the ring center once drawn
+// long enough, the same way a straight line passing near center does,
+// without being any less a single sharp corner.
 for (const arm of [35, 70, 100]) {
   check(`wide-armed bend (arm=${arm}) is not mistaken for a sweep`, classifyStrokeGroup([peakAt(150, 0, arm)]), "bend");
 }
 
-// Direction's own reference glyph is a bare peak, no straight spine,
-// unlike Pull's (a mostly straight line with a small arrowhead), so it
-// has to be reachable via the same family a peak actually classifies
-// into (zigzag, with Bend/Bolt), not straightIn (with Pull): a peak was
-// never going to read as straightIn no matter how the geometry was
-// tuned, which meant Direction could never appear as a dropdown option
-// for the shape that's supposed to produce it.
+// Direction's glyph is a bare peak, so it must be reachable from the
+// same family a peak actually classifies into (Bend/Bolt), not Pull's.
 check("Direction is reachable from a peak's own family", bucketCandidates("bend").includes("direction"), true);
 check("Direction is not still listed under Pull's family", bucketCandidates("pull").includes("direction"), false);
 
@@ -234,11 +208,9 @@ check("Eye is reachable from Diamond's family (its glyph is a closed oval)", buc
 check("Eye is not still listed under wavy", bucketCandidates("float").includes("eye"), false);
 
 // A T-shape (spine + short tick) must NOT be misread as bend: the spine
-// should dominate. Drawn radially (pointing away from ring center, like a
-// real outward stroke), not tangentially across it: a stroke tangent to
-// the ring has both endpoints equidistant from center by construction,
-// which makes "outward vs inward" genuinely undefined regardless of how
-// good the corner detection is, not a meaningful test of either.
+// should dominate. Drawn radially, not tangentially, since a tangential
+// stroke has both endpoints equidistant from center by construction and
+// leaves "outward vs inward" undefined regardless of detection quality.
 const tSpine = line(20, -20, 170, -170); // outward along a diagonal
 const tTick = line(170, -170, 200, -145).slice(1); // short perpendicular-ish cap
 check("T-shape spine dominates (not bend)", classifyStrokeGroup([[...tSpine, ...tTick]]), "column");
@@ -374,29 +346,22 @@ function checkJitterRobust(label, shapeFn, expected, passRate = JITTER_PASS_RATE
 
 checkJitterRobust("straightOut (column)", () => line(90, 0, 180, 0), "column");
 checkJitterRobust("straightIn (pull)", () => line(180, 0, 90, 0), "pull");
-// A single sharp corner is the closest the family set comes to a gentle
-// wiggle (both are "one bend, doesn't travel far"), so this one holds a
-// slightly lower bar than the rest under heavy noise; its near-misses
-// land on that neighboring family, not somewhere wild.
+// A single sharp corner is the closest neighboring family to a gentle
+// wiggle, so this one holds a slightly lower bar under heavy noise.
 checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
-// Small-size regressions: SPREAD_DEAD_ZONE (60px -> 20px) fixed small
-// sweeps; scaling the diamond resample count to perimeter fixed small
-// diamonds. Below ~50px across, diamonds still aren't reliably
-// recoverable (tremor is 15-40% of the shape's own size); tracked as an
-// accepted floor with a low bar, not silently left unmeasured.
+// Below ~50px across, diamonds aren't reliably recoverable (tremor is
+// 15-40% of the shape's own size) -- tracked as an accepted floor.
 checkJitterRobust("wideOut (dispersion), drawn small", () => arcSweep(25, -70, 70, true), "dispersion");
 checkJitterRobust("wideIn (convergence), drawn small", () => arcSweep(25, -70, 70, false), "convergence");
 checkJitterRobust("closedSmooth (diamond), drawn small", () => realDiamond(150, 0, 50), "diamond");
 checkJitterRobust("closedSmooth (diamond), drawn tiny (known limitation, low bar)", () => realDiamond(150, 0, 25), "diamond", 0.3);
 
 // ---- 5. real hand-drawn examples that came back misclassified in
-// practice (bolt/bend for shapes a person reads as clearly directional),
-// traced from actual screenshots rather than synthesized from the family
-// description. Multi-stroke, so built directly rather than through
-// checkJitterRobust's single-stroke helper. ----
+// practice, traced from actual screenshots. Multi-stroke, so built
+// directly rather than through checkJitterRobust's single-stroke helper. ----
 function realSignJitterRobust(label, pathsFn, expected, passRate = 0.7, jitterPx = JITTER_PX) {
   let ok = 0;
   for (let seed = 1; seed <= JITTER_SEEDS; seed++) {
@@ -416,8 +381,7 @@ function realSignJitterRobust(label, pathsFn, expected, passRate = 0.7, jitterPx
 }
 
 // Vertical line into a small arrowhead, plus a separate wide crossbar
-// drawn through the tip -- two strokes, decorated well past the point a
-// synthetic test would normally bother with.
+// drawn through the tip.
 function realSign0(ox, oy) {
   const mainLine = [...line(0, -35, 0, 22), ...line(0, 22, -9, 15).slice(1), ...line(-9, 15, 0, 22).slice(1), ...line(0, 22, 9, 15).slice(1)];
   const crossbar = line(-19, 27, 19, 27);
@@ -433,22 +397,14 @@ function realSign1(ox, oy) {
   const right = line(0, 0, 31, 0);
   return [up, down, left, right].map((p) => p.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })));
 }
-// This one has three layered decorations (arrowhead + separate crossbar)
-// on top of the core line, more than the other jitter checks carry, so it
-// holds up at a moderate tremor level but genuinely degrades toward "bolt"
-// under the same heavier 6px used elsewhere -- tracked here rather than
-// hidden, not chased further with more threshold-tuning against one
-// specific hand-drawn example.
 // Positioned north (not east): the sideways crossbar is tangential to the
-// ring there, and the main line's descent is unambiguously toward center
-// (inward), instead of both competing to shift the overall direction
-// reading the way they do at an arbitrary angle.
+// ring there, and the main line's descent is unambiguously inward,
+// instead of both competing to shift the direction reading.
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "crosshair", 0.6);
 
-// Real crosshair from a user's devtools log, not synthesized: unlike
-// realSign1, its four arms don't share an exact origin pixel, which used
-// to be enough on its own to misread this as "wavy" (see classify.js).
+// Real crosshair from a user's devtools log: unlike realSign1, its four
+// arms don't share an exact origin pixel.
 function realSign2() {
   return [
     [{ x: -10, y: -111.8 }, { x: -10, y: -107.8 }, { x: -10, y: -103.8 }, { x: -11, y: -98.8 }, { x: -11, y: -92.8 }, { x: -11, y: -87.8 }, { x: -12, y: -81.8 }, { x: -12, y: -77.8 }, { x: -12, y: -73.8 }, { x: -12, y: -69.8 }, { x: -12, y: -66.8 }, { x: -12, y: -63.8 }],
@@ -460,11 +416,8 @@ function realSign2() {
 check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "crosshair");
 realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "crosshair", 0.6);
 
-// ---- 6. drawing a sign larger actually produces a noticeably stronger
-// reading, not just a quietly different number. Witch Hat Atelier's own
-// magic scales with how big a sign is drawn; a spell circle app that
-// doesn't reflect that in what the reading actually says isn't honoring
-// it, even if the underlying number technically moved. ----
+// ---- 6. drawing a sign larger produces a noticeably stronger reading,
+// reflected in the label text, not just the underlying number. ----
 const smallColumn = composeSpell({
   sigilId: "fire",
   signs: [{ archetypeId: "column", angle: 0, length: 0.15, inverted: false }],

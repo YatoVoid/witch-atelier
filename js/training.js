@@ -1,9 +1,6 @@
-// Personal shape-template corrections, saved to localStorage so a
-// correction sticks around across reloads instead of being forgotten the
-// moment the page closes. Layered on top of the shipped SHAPE_TEMPLATES
-// in js/data/templates.js (see classify.js's matchShapeTemplate) rather
-// than editing that file, the same way a saved spell in the grimoire
-// doesn't touch the canon spellbook.
+// Personal shape-template corrections, saved to localStorage and layered
+// on top of the shipped SHAPE_TEMPLATES in js/data/templates.js (see
+// classify.js's matchShapeTemplate) rather than editing that file.
 const TRAINING_KEY = "witch-atelier:training";
 
 const Training = {
@@ -15,14 +12,11 @@ const Training = {
     }
   },
 
-  // paths: the raw multi-stroke points a sign was actually drawn with
-  // (app.js keeps these as instance.basePaths). label: a shape category
-  // classify.js's template matcher understands (straight, bend, bolt,
-  // wavy). A crosshair-style hub (radiatesFromSharedHub, same check
-  // classify.js uses at match time) is saved one arm per entry instead
-  // of flattened into one polyline: concatenating arms that don't share
-  // an exact pixel bakes the same jump-reads-as-a-corner problem into
-  // the saved template that matching already avoids for live input.
+  // paths: the raw multi-stroke points a sign was drawn with. label: a
+  // shape category classify.js's matcher understands (straight, bend,
+  // bolt, wavy). A crosshair-style hub is saved one arm per entry instead
+  // of flattened into one polyline, since concatenating arms that don't
+  // share an exact pixel would read as a false corner.
   save(paths, label) {
     const entries = Training.list();
     const groups = paths.length >= 3 && radiatesFromSharedHub(paths) ? paths.map((p) => [p]) : [paths];
@@ -42,8 +36,7 @@ const Training = {
     localStorage.removeItem(TRAINING_KEY);
   },
 
-  // Grouped by label, the shape matchShapeTemplate's extraTemplates
-  // argument expects, so this can be passed straight through.
+  // Grouped by label, matching matchShapeTemplate's extraTemplates shape.
   asTemplatePool() {
     const pool = {};
     for (const entry of Training.list()) {
