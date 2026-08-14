@@ -1,29 +1,42 @@
-// Canvas rendering. Ink/chalk texture comes from drawing each stroke twice
-// with a small, seeded jitter — seeded so it doesn't crawl on every repaint.
-function seededJitter(seed) {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
+// Canvas rendering. Signs are drawn from the actual points the user's stroke
+// recorded — nothing synthetic — smoothed with a standard quadratic-through-
+// midpoints pass and a soft shadow for ink bleed instead of faking texture
+// with random jitter.
+function strokePath(ctx, points, width) {
+  if (points.length < 2) return;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = width;
+  ctx.strokeStyle = "#14120f";
+  ctx.shadowColor = "rgba(20, 18, 15, 0.35)";
+  ctx.shadowBlur = width * 0.7;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i++) {
+    const mx = (points[i].x + points[i + 1].x) / 2;
+    const my = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, mx, my);
+  }
+  const last = points[points.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
-function inkStroke(ctx, x1, y1, x2, y2, seed, width) {
-  const jx = (seededJitter(seed) - 0.5) * 3;
-  const jy = (seededJitter(seed + 1) - 0.5) * 3;
+function drawArrowhead(ctx, tipX, tipY, fromX, fromY, size) {
+  const angle = Math.atan2(tipY - fromY, tipX - fromX);
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.quadraticCurveTo((x1 + x2) / 2 + jx, (y1 + y2) / 2 + jy, x2, y2);
-  ctx.lineWidth = width;
-  ctx.globalAlpha = 0.9;
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - Math.cos(angle - 0.4) * size, tipY - Math.sin(angle - 0.4) * size);
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - Math.cos(angle + 0.4) * size, tipY - Math.sin(angle + 0.4) * size);
   ctx.stroke();
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = width * 0.6;
-  ctx.beginPath();
-  ctx.moveTo(x1 + (seededJitter(seed + 2) - 0.5) * 2, y1 + (seededJitter(seed + 3) - 0.5) * 2);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
 }
 
 function drawRing(ctx, cx, cy, r, complete) {
+  ctx.shadowBlur = 0;
   ctx.strokeStyle = "#14120f";
   ctx.lineWidth = 2;
   ctx.setLineDash(complete ? [] : [10, 8]);
@@ -33,133 +46,95 @@ function drawRing(ctx, cx, cy, r, complete) {
   ctx.setLineDash([]);
 }
 
+// Procedural glyph paths, in local coordinates (unit radius). Kept as point
+// lists so they render through the same ink-stroke renderer as hand-drawn
+// signs instead of looking mechanically distinct.
+const SIGIL_PATHS = {
+  fire: (s) =>
+    [0, 1, 2].map((i) => {
+      const a = (Math.PI * 2 * i) / 3 - Math.PI / 2;
+      return [
+        { x: 0, y: 0 },
+        { x: Math.cos(a) * s, y: Math.sin(a) * s },
+      ];
+    }),
+  water: (s) =>
+    [-1, 0, 1].map((i) => [
+      { x: -s, y: i * s * 0.5 },
+      { x: -s * 0.3, y: i * s * 0.5 - s * 0.4 },
+      { x: s * 0.3, y: i * s * 0.5 - s * 0.4 },
+      { x: s, y: i * s * 0.5 },
+    ]),
+  wind: (s) => {
+    const pts = [];
+    for (let t = 0; t <= 1; t += 0.05) {
+      const a = t * Math.PI * 3;
+      const rad = s * t;
+      pts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
+    }
+    return [pts];
+  },
+  earth: (s) => [
+    [
+      { x: 0, y: -s },
+      { x: s, y: 0 },
+      { x: 0, y: s },
+      { x: -s, y: 0 },
+      { x: 0, y: -s },
+    ],
+  ],
+  light: (s) =>
+    Array.from({ length: 8 }, (_, i) => {
+      const a = (Math.PI * 2 * i) / 8;
+      return [
+        { x: Math.cos(a) * s * 0.3, y: Math.sin(a) * s * 0.3 },
+        { x: Math.cos(a) * s, y: Math.sin(a) * s },
+      ];
+    }),
+};
+
 function drawSigil(ctx, cx, cy, r, sigilId) {
-  ctx.strokeStyle = "#14120f";
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const s = r;
+  const build = SIGIL_PATHS[sigilId];
+  if (!build) return;
   ctx.save();
   ctx.translate(cx, cy);
-  switch (sigilId) {
-    case "fire":
-      ctx.beginPath();
-      for (let i = 0; i < 3; i++) {
-        const a = (Math.PI * 2 * i) / 3 - Math.PI / 2;
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
-      }
-      ctx.stroke();
-      break;
-    case "water":
-      ctx.beginPath();
-      for (let i = -1; i <= 1; i++) {
-        ctx.moveTo(-s, i * s * 0.5);
-        ctx.quadraticCurveTo(0, i * s * 0.5 - s * 0.4, s, i * s * 0.5);
-      }
-      ctx.stroke();
-      break;
-    case "wind":
-      ctx.beginPath();
-      ctx.moveTo(-s, 0);
-      for (let t = 0; t <= 1; t += 0.05) {
-        const a = t * Math.PI * 3;
-        const rad = s * t;
-        ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
-      }
-      ctx.stroke();
-      break;
-    case "earth":
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.lineTo(s, 0);
-      ctx.lineTo(0, s);
-      ctx.lineTo(-s, 0);
-      ctx.closePath();
-      ctx.stroke();
-      break;
-    case "light":
-      ctx.beginPath();
-      for (let i = 0; i < 8; i++) {
-        const a = (Math.PI * 2 * i) / 8;
-        ctx.moveTo(Math.cos(a) * s * 0.3, Math.sin(a) * s * 0.3);
-        ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
-      }
-      ctx.stroke();
-      break;
-    default:
-      ctx.setLineDash([4, 6]);
-      ctx.beginPath();
-      ctx.arc(0, 0, s * 0.5, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-  }
+  build(r).forEach((sub) => strokePath(ctx, sub, 2.5));
   ctx.restore();
 }
 
-function drawSign(ctx, cx, cy, ringR, instance, index) {
-  const ax = cx + Math.cos(instance.angle) * ringR;
-  const ay = cy + Math.sin(instance.angle) * ringR;
-  const extent = ringR * 0.55 * instance.length;
-  const dirSign = instance.inverted ? -1 : 1;
-  ctx.strokeStyle = "#14120f";
-  ctx.lineCap = "round";
-  const seed = index * 7.3 + instance.angle * 3;
+function drawSign(ctx, cx, cy, instance) {
+  if (!instance.path || instance.path.length < 2) return;
+  const local = instance.path.map((p) => ({ x: p.x, y: p.y }));
+  ctx.save();
+  ctx.translate(cx, cy);
+  const width = 2 + instance.length * 2.5;
+  strokePath(ctx, local, width);
 
-  switch (instance.archetypeId) {
-    case "column": {
-      const bx = ax + Math.cos(instance.angle) * extent * dirSign;
-      const by = ay + Math.sin(instance.angle) * extent * dirSign;
-      inkStroke(ctx, ax, ay, bx, by, seed, 3);
-      const headAngle = Math.atan2(by - ay, bx - ax);
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx - Math.cos(headAngle - 0.4) * 8, by - Math.sin(headAngle - 0.4) * 8);
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx - Math.cos(headAngle + 0.4) * 8, by - Math.sin(headAngle + 0.4) * 8);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      break;
-    }
-    case "levitation": {
-      const perp = instance.angle + Math.PI / 2;
-      for (let i = -1; i <= 1; i += 2) {
-        const bx = ax + Math.cos(instance.angle) * extent + Math.cos(perp) * i * 5;
-        const by = ay + Math.sin(instance.angle) * extent + Math.sin(perp) * i * 5;
-        inkStroke(ctx, ax + Math.cos(perp) * i * 5, ay + Math.sin(perp) * i * 5, bx, by, seed + i, 2);
-      }
-      break;
-    }
-    case "dispersion": {
-      for (let i = -1; i <= 1; i++) {
-        const a = instance.angle + i * 0.3;
-        const bx = ax + Math.cos(a) * extent;
-        const by = ay + Math.sin(a) * extent;
-        inkStroke(ctx, ax, ay, bx, by, seed + i, 2);
-      }
-      break;
-    }
-    case "crushing": {
-      const perp = instance.angle + Math.PI / 2;
-      const bx1 = ax + Math.cos(perp) * extent * 0.4;
-      const by1 = ay + Math.sin(perp) * extent * 0.4;
-      const bx2 = ax - Math.cos(perp) * extent * 0.4;
-      const by2 = ay - Math.sin(perp) * extent * 0.4;
-      inkStroke(ctx, bx1, by1, bx2, by2, seed, 4);
-      break;
-    }
+  if (instance.archetypeId === "column" || instance.archetypeId === "pulling") {
+    const tip = local[local.length - 1];
+    const prev = local[Math.max(0, local.length - 2)];
+    drawArrowhead(ctx, tip.x, tip.y, prev.x, prev.y, 7 + instance.length * 3);
   }
+  ctx.restore();
 }
 
 function drawScene(ctx, size, state) {
   ctx.clearRect(0, 0, size, size);
   const cx = size / 2;
   const cy = size / 2;
-  const ringR = size * 0.32;
+  const ringR = size * RING_RATIO;
 
   drawRing(ctx, cx, cy, ringR, state.ringComplete);
   if (state.sigilId) drawSigil(ctx, cx, cy, ringR * 0.28, state.sigilId);
-  state.signs.forEach((instance, i) => drawSign(ctx, cx, cy, ringR, instance, i));
+  state.signs.forEach((instance) => drawSign(ctx, cx, cy, instance));
+
+  if (state.livePath && state.livePath.length > 1) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = 0.55;
+    strokePath(ctx, state.livePath, 3);
+    ctx.restore();
+  }
 }
 
 function castEffect(canvas, size, params, sigil, sceneState, duration = 900) {
@@ -167,8 +142,8 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 900) {
   const cx = size / 2;
   const cy = size / 2;
   const count = 26;
-  const style = sigil ? sigil.particle : { shape: "spark", jitter: 0.4, trail: 0.2 };
-  const particles = Array.from({ length: count }, (_, i) => {
+  const style = sigil ? sigil.particle : { shape: "spark" };
+  const particles = Array.from({ length: count }, () => {
     const spread = params.spreadRatio * Math.PI * 2 + 0.3;
     const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
     const angle = params.hasDirection
@@ -183,7 +158,7 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 900) {
     const t = Math.min(1, (now - start) / duration);
     drawScene(ctx, size, sceneState);
     ctx.save();
-    ctx.strokeStyle = "#14120f";
+    ctx.shadowBlur = 0;
     ctx.fillStyle = "#14120f";
     particles.forEach((p) => {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);

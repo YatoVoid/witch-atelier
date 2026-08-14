@@ -8,9 +8,12 @@
     sigilId: null,
     signs: [],
     ringComplete: false,
+    livePath: null,
   };
 
-  let activeTool = null; // archetype id being placed, or null
+  let activeTool = null; // archetype id being drawn, or null
+  let drawing = false;
+  let rawPoints = []; // client-space points for the in-progress stroke
 
   function resizeCanvas() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -38,6 +41,23 @@
     return result;
   }
 
+  function ringRadius() {
+    return size * RING_RATIO;
+  }
+
+  function toLocal(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: clientX - rect.left - size / 2, y: clientY - rect.top - size / 2 };
+  }
+
+  function pathLength(points) {
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return total;
+  }
+
   // ---- Palette: sigils ----
   const sigilPalette = document.getElementById("sigil-palette");
   SIGILS.forEach((sigil) => {
@@ -60,7 +80,7 @@
     const btn = document.createElement("button");
     btn.className = "chip";
     btn.textContent = archetype.name;
-    btn.title = archetype.description;
+    btn.title = archetype.short;
     btn.dataset.archetype = archetype.id;
     btn.addEventListener("click", () => {
       activeTool = activeTool === archetype.id ? null : archetype.id;
@@ -71,17 +91,58 @@
     signPalette.appendChild(btn);
   });
 
-  // ---- Placing signs by tapping the ring ----
+  // ---- Freehand stroke capture: draw anywhere, any angle, any length ----
   canvas.addEventListener("pointerdown", (e) => {
     if (!activeTool) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
-    const angle = Math.atan2(y, x);
-    state.signs.push({ archetypeId: activeTool, angle, length: 0.5, inverted: false });
+    drawing = true;
+    canvas.setPointerCapture(e.pointerId);
+    rawPoints = [toLocal(e.clientX, e.clientY)];
+    state.livePath = rawPoints;
+    render();
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return;
+    const p = toLocal(e.clientX, e.clientY);
+    const last = rawPoints[rawPoints.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) < 2) return; // skip near-duplicate points
+    rawPoints.push(p);
+    state.livePath = rawPoints;
+    render();
+  });
+
+  function finishStroke() {
+    if (!drawing) return;
+    drawing = false;
+    state.livePath = null;
+    if (rawPoints.length < 2) {
+      rawPoints = [];
+      render();
+      return;
+    }
+
+    const start = rawPoints[0];
+    const end = rawPoints[rawPoints.length - 1];
+    const angle = Vector.angle(end.x, end.y);
+    const length = Math.max(0.15, Math.min(1.4, pathLength(rawPoints) / ringRadius()));
+    const distFromCenterStart = Math.hypot(start.x, start.y);
+    const distFromCenterEnd = Math.hypot(end.x, end.y);
+    const inverted = distFromCenterEnd < distFromCenterStart; // drawn inward = pull
+
+    state.signs.push({
+      archetypeId: activeTool,
+      angle,
+      length,
+      inverted,
+      path: rawPoints.slice(),
+    });
+    rawPoints = [];
     renderSignList();
     recompute();
-  });
+  }
+
+  canvas.addEventListener("pointerup", finishStroke);
+  canvas.addEventListener("pointercancel", finishStroke);
 
   // ---- Ring completion toggle ----
   const ringToggle = document.getElementById("ring-toggle");
@@ -92,14 +153,14 @@
     recompute();
   });
 
-  // ---- Placed signs list (fine control) ----
+  // ---- Placed signs list (fine control + accessible alternative to drawing) ----
   const signList = document.getElementById("sign-list");
   function renderSignList() {
     signList.innerHTML = "";
     if (state.signs.length === 0) {
       const empty = document.createElement("p");
       empty.className = "muted";
-      empty.textContent = "No signs placed yet. Pick one above, then tap the ring.";
+      empty.textContent = "No signs drawn yet. Pick one above, then draw on the ring.";
       signList.appendChild(empty);
       return;
     }
@@ -110,13 +171,14 @@
 
       const label = document.createElement("span");
       label.className = "sign-row-label";
-      label.textContent = `${archetype.name} · ${Math.round(Vector.toDegrees(instance.angle))}°`;
+      const orientation = instance.archetypeId === "column" ? (instance.inverted ? " · pull" : " · push") : "";
+      label.textContent = `${archetype.name} · ${Math.round(Vector.toDegrees(instance.angle))}°${orientation}`;
       row.appendChild(label);
 
       const slider = document.createElement("input");
       slider.type = "range";
       slider.min = "0.15";
-      slider.max = "1";
+      slider.max = "1.4";
       slider.step = "0.01";
       slider.value = String(instance.length);
       slider.addEventListener("input", () => {
@@ -124,16 +186,6 @@
         recompute();
       });
       row.appendChild(slider);
-
-      const invertBtn = document.createElement("button");
-      invertBtn.className = "mini-btn";
-      invertBtn.textContent = instance.inverted ? "flipped" : "flip";
-      invertBtn.addEventListener("click", () => {
-        instance.inverted = !instance.inverted;
-        invertBtn.textContent = instance.inverted ? "flipped" : "flip";
-        recompute();
-      });
-      row.appendChild(invertBtn);
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "mini-btn danger";
@@ -155,19 +207,19 @@
     const { params, warnings, label, ok } = result;
     const dirText = params.hasDirection
       ? `${Vector.compassLabel(params.direction)} (${Math.round(Vector.toDegrees(params.direction))}°)`
-      : "no bias — omnidirectional";
+      : "none";
     readoutEl.innerHTML = `
       <dl>
         <dt>Element</dt><dd>${result.sigil ? result.sigil.name : "none"}</dd>
-        <dt>Net direction</dt><dd>${dirText}</dd>
+        <dt>Direction</dt><dd>${dirText}</dd>
         <dt>Skew</dt><dd>${params.magnitude.toFixed(2)}</dd>
         <dt>Spread</dt><dd>${params.spreadRatio.toFixed(2)}</dd>
         <dt>Sustain</dt><dd>${params.sustainRatio.toFixed(2)}</dd>
         <dt>Intensity</dt><dd>${params.intensity.toFixed(2)}</dd>
       </dl>
-      <p class="effect-label">Reads as: ${label}</p>
+      <p class="effect-label">${label}</p>
       ${warnings.length ? `<ul class="warnings">${warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : ""}
-      <p class="status ${ok ? "ok" : "warn"}">${ok ? "Stable" : "Unstable"}</p>
+      <p class="status ${ok ? "ok" : "warn"}">${ok ? "stable" : "unstable"}</p>
     `;
   }
 
@@ -187,7 +239,7 @@
     if (entries.length === 0) {
       const empty = document.createElement("p");
       empty.className = "muted";
-      empty.textContent = "Your grimoire is empty.";
+      empty.textContent = "Grimoire is empty.";
       grimoireList.appendChild(empty);
       return;
     }
@@ -245,7 +297,7 @@
     const code = document.getElementById("import-code").value;
     const decoded = Grimoire.decode(code);
     if (!decoded) {
-      alert("That code didn't decode into a spell.");
+      alert("Code didn't decode into a spell.");
       return;
     }
     state.sigilId = decoded.sigilId;
