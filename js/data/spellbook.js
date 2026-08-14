@@ -32,7 +32,7 @@ const SPELLBOOK = [
   { name: "Rainflinger (Normal)", image: "assets/spells/rainflinger-normal.webp", description: null },
   { name: "Repetition Seal", image: "assets/spells/repetition-seal.webp", description: null },
   { name: "Rising Platform of Water", image: "assets/spells/rising-platform-of-water.webp", description: null },
-  { name: "Rising Wave", image: "assets/spells/rising-wave.webp", description: null },
+  { name: "Rising Wave", image: "assets/spells/rising-wave.webp", description: "Water sigil surrounded by eight Column-family signs spaced evenly around the ring, the same radiant pattern as Light Beam and Watershot Seal." },
   { name: "Sand Cage", image: "assets/spells/sand-cage.webp", description: null },
   { name: "Scalewolf Curse", image: "assets/spells/scalewolf-curse.webp", description: null },
   { name: "Skysoaring Seal", image: "assets/spells/skysoaring-seal.webp", description: null },
@@ -42,5 +42,5 @@ const SPELLBOOK = [
   { name: "Twinned Bottles Spell", image: "assets/spells/twinned-bottles-spell.webp", description: null },
   { name: "Wall Breaker Seal", image: "assets/spells/wall-breaker-seal.webp", description: null },
   { name: "Water Pen", image: "assets/spells/water-pen.webp", description: null },
-  { name: "Watershot Seal", image: "assets/spells/watershot-seal.webp", description: null },
+  { name: "Watershot Seal", image: "assets/spells/watershot-seal.webp", description: "Water sigil surrounded by eight Column-family signs spaced evenly around the ring, the same radiant pattern as Light Beam and Rising Wave." },
 ];

@@ -44,6 +44,7 @@
     result.match = matchSpell(state);
     renderReadout(result);
     render();
+    document.getElementById("cast-btn").disabled = !state.ringComplete;
     return result;
   }
 
@@ -327,8 +328,12 @@
     `;
   }
 
-  // ---- Cast ----
-  document.getElementById("cast-btn").addEventListener("click", () => {
+  // ---- Cast: only fires with a closed ring, same rule the readout already
+  // warns about ("Ring is open, spell won't activate"), so Cast now
+  // actually honors it instead of playing the animation regardless.
+  const castBtn = document.getElementById("cast-btn");
+  castBtn.addEventListener("click", () => {
+    if (!state.ringComplete) return;
     const result = composeSpell(state);
     castEffect(canvas, size, result.params, result.sigil, state);
   });

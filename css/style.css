@@ -248,6 +248,13 @@ h2:first-child {
   opacity: 0.85;
 }
 
+.primary-btn:disabled {
+  background: var(--wash-strong);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .secondary-btn {
   font-family: var(--font-body);
   background: transparent;

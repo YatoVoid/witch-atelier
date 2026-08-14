@@ -2,13 +2,21 @@
 // recorded, nothing synthetic, smoothed with a standard quadratic-through-
 // midpoints pass and a soft shadow for ink bleed instead of faking texture
 // with random jitter.
+//
+// INK is sampled from the actual reference artwork's dominant color
+// (assets/sigils/fire.webp, rgb(108,0,0)) so drawn strokes and the cast
+// animation match the hand-drawn glyphs instead of defaulting to plain
+// black.
+const INK = "#6c0000";
+const INK_RGB = "108, 0, 0";
+
 function strokePath(ctx, points, width) {
   if (points.length < 2) return;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.lineWidth = width;
-  ctx.strokeStyle = "#14120f";
-  ctx.shadowColor = "rgba(20, 18, 15, 0.35)";
+  ctx.strokeStyle = INK;
+  ctx.shadowColor = `rgba(${INK_RGB}, 0.35)`;
   ctx.shadowBlur = width * 0.7;
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
@@ -37,7 +45,7 @@ function drawArrowhead(ctx, tipX, tipY, fromX, fromY, size) {
 
 function drawRing(ctx, cx, cy, r, complete) {
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#14120f";
+  ctx.strokeStyle = INK;
   ctx.lineWidth = 2;
   ctx.setLineDash(complete ? [] : [10, 8]);
   ctx.beginPath();
@@ -126,7 +134,7 @@ function drawRingPulse(ctx, cx, cy, ringR, t) {
   ctx.save();
   ctx.shadowBlur = 0;
   ctx.globalAlpha = (1 - pulseT) * 0.5;
-  ctx.strokeStyle = "#14120f";
+  ctx.strokeStyle = INK;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(cx, cy, ringR * (1 + ease * 0.12), 0, Math.PI * 2);
@@ -171,8 +179,8 @@ function drawTrail(ctx, trail, baseAlpha, width) {
 // element, not an abstract particle system.
 function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = "#14120f";
-  ctx.strokeStyle = "#14120f";
+  ctx.fillStyle = INK;
+  ctx.strokeStyle = INK;
   switch (shape) {
     case "spark": {
       // A licking flame silhouette trailing behind the direction of travel.
@@ -211,7 +219,7 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate((extra.spin || 0) + angle);
-      ctx.shadowColor = "rgba(20, 18, 15, 0.4)";
+      ctx.shadowColor = `rgba(${INK_RGB}, 0.4)`;
       ctx.shadowBlur = size * 0.9;
       ctx.lineWidth = size * 0.55;
       ctx.beginPath();
@@ -238,7 +246,7 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.shadowColor = "rgba(20, 18, 15, 0.45)";
+      ctx.shadowColor = `rgba(${INK_RGB}, 0.45)`;
       ctx.shadowBlur = size * 1.4;
       ctx.globalAlpha = alpha * 0.35;
       ctx.fillRect(-size * 2.2, -size * 0.5, size * 4.4, size);
@@ -300,7 +308,7 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000) {
       if (p.trail.length > trailLength) p.trail.shift();
 
       const alpha = 1 - pt;
-      ctx.strokeStyle = "#14120f";
+      ctx.strokeStyle = INK;
       drawTrail(ctx, p.trail, alpha, particleSize * 0.5);
 
       const extra = {
