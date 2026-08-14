@@ -149,20 +149,49 @@ function drawSigilPulse(ctx, cx, cy, r, sigilId, t) {
   ctx.restore();
 }
 
-// Each element gets a distinct particle shape instead of a generic dot, so
-// the cast at least reads as "which element" at a glance.
-function drawParticle(ctx, shape, x, y, angle, alpha, size) {
+// A fading comet trail behind a moving particle, drawn from its recent
+// positions instead of just a dot at the current one.
+function drawTrail(ctx, trail, baseAlpha, width) {
+  if (trail.length < 2) return;
+  for (let i = 1; i < trail.length; i++) {
+    const a = trail[i - 1];
+    const b = trail[i];
+    const t = i / trail.length;
+    ctx.globalAlpha = baseAlpha * t * 0.5;
+    ctx.lineWidth = width * (0.3 + t * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+}
+
+// Each element gets a distinct, organic shape instead of a generic dot or
+// rectangle, so a cast at least reads as an effect belonging to that
+// element, not an abstract particle system.
+function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = "#14120f";
   ctx.strokeStyle = "#14120f";
   switch (shape) {
     case "spark": {
-      const len = size * 2.4;
-      ctx.lineWidth = size * 0.6;
+      // A licking flame silhouette trailing behind the direction of travel.
+      const back = angle + Math.PI;
+      const len = size * 2.6 * (0.85 + (extra.flicker || 0) * 0.3);
+      const perp = angle + Math.PI / 2;
+      const tipX = x;
+      const tipY = y;
+      const baseX = x + Math.cos(back) * len;
+      const baseY = y + Math.sin(back) * len;
+      const midX = x + Math.cos(back) * len * 0.5 + Math.cos(perp) * size * 0.55;
+      const midY = y + Math.sin(back) * len * 0.5 + Math.sin(perp) * size * 0.55;
+      const midX2 = x + Math.cos(back) * len * 0.5 - Math.cos(perp) * size * 0.55;
+      const midY2 = y + Math.sin(back) * len * 0.5 - Math.sin(perp) * size * 0.55;
       ctx.beginPath();
-      ctx.moveTo(x - Math.cos(angle) * len, y - Math.sin(angle) * len);
-      ctx.lineTo(x, y);
-      ctx.stroke();
+      ctx.moveTo(tipX, tipY);
+      ctx.quadraticCurveTo(midX, midY, baseX, baseY);
+      ctx.quadraticCurveTo(midX2, midY2, tipX, tipY);
+      ctx.fill();
       break;
     }
     case "droplet": {
@@ -170,30 +199,36 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size) {
       ctx.translate(x, y);
       ctx.rotate(angle + Math.PI / 2);
       ctx.beginPath();
-      ctx.ellipse(0, 0, size * 0.65, size * 1.05, 0, 0, Math.PI * 2);
+      ctx.moveTo(0, -size * 1.3);
+      ctx.quadraticCurveTo(size * 0.9, size * 0.2, 0, size * 1.0);
+      ctx.quadraticCurveTo(-size * 0.9, size * 0.2, 0, -size * 1.3);
       ctx.fill();
       ctx.restore();
       break;
     }
     case "wisp": {
+      // A small curling gust, like a comma, instead of a blurred dot.
       ctx.save();
-      ctx.shadowColor = "rgba(20, 18, 15, 0.5)";
-      ctx.shadowBlur = size * 1.6;
-      ctx.globalAlpha = alpha * 0.7;
+      ctx.translate(x, y);
+      ctx.rotate((extra.spin || 0) + angle);
+      ctx.shadowColor = "rgba(20, 18, 15, 0.4)";
+      ctx.shadowBlur = size * 0.9;
+      ctx.lineWidth = size * 0.55;
       ctx.beginPath();
-      ctx.arc(x, y, size * 1.3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 0, size * 1.1, 0.4, Math.PI * 1.5);
+      ctx.stroke();
       ctx.restore();
       break;
     }
     case "shard": {
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(angle);
+      ctx.rotate(extra.spin || angle);
       ctx.beginPath();
-      ctx.moveTo(-size * 0.9, -size * 0.5);
-      ctx.lineTo(size * 0.9, 0);
-      ctx.lineTo(-size * 0.9, size * 0.5);
+      ctx.moveTo(-size * 0.9, -size * 0.6);
+      ctx.lineTo(size * 1.0, -size * 0.1);
+      ctx.lineTo(size * 0.5, size * 0.8);
+      ctx.lineTo(-size * 0.7, size * 0.4);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -203,7 +238,13 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.fillRect(-1, -size * 1.6, 2, size * 3.2);
+      ctx.shadowColor = "rgba(20, 18, 15, 0.45)";
+      ctx.shadowBlur = size * 1.4;
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillRect(-size * 2.2, -size * 0.5, size * 4.4, size);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(-size * 2.2, -1, size * 4.4, 2);
       ctx.restore();
       break;
     }
@@ -216,14 +257,15 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size) {
   ctx.globalAlpha = 1;
 }
 
-function castEffect(canvas, size, params, sigil, sceneState, duration = 950) {
+function castEffect(canvas, size, params, sigil, sceneState, duration = 1000) {
   const ctx = canvas.getContext("2d");
   const cx = size / 2;
   const cy = size / 2;
   const ringR = size * RING_RATIO;
-  const count = 30;
+  const count = 26;
   const style = sigil ? sigil.particle : { shape: "spark" };
-  const particleSize = 2 + Math.min(params.intensity, 2.5);
+  const particleSize = 3 + Math.min(params.intensity, 2.5) * 1.4;
+  const trailLength = 6;
   const particles = Array.from({ length: count }, () => {
     const spread = params.spreadRatio * Math.PI * 2 + 0.3;
     const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
@@ -232,7 +274,8 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 950) {
       : Math.random() * Math.PI * 2;
     const speed = (0.4 + Math.random() * 0.6) * (0.5 + params.intensity);
     const wobblePhase = Math.random() * Math.PI * 2;
-    return { angle, speed, offset: Math.random() * 0.35, wobblePhase };
+    const spinDir = Math.random() < 0.5 ? -1 : 1;
+    return { angle, speed, offset: Math.random() * 0.35, wobblePhase, spinDir, trail: [] };
   });
 
   const start = performance.now();
@@ -246,12 +289,25 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 950) {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);
       if (pt <= 0) return;
       const eased = 1 - Math.pow(1 - pt, 2);
+      const gravity = style.shape === "droplet" ? pt * pt * size * 0.06 : 0;
       const dist = eased * size * 0.42 * p.speed;
       const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 : 0;
       const perp = p.angle + Math.PI / 2;
       const x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
-      const y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble;
-      drawParticle(ctx, style.shape, x, y, p.angle, 1 - pt, particleSize);
+      const y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity;
+
+      p.trail.push({ x, y });
+      if (p.trail.length > trailLength) p.trail.shift();
+
+      const alpha = 1 - pt;
+      ctx.strokeStyle = "#14120f";
+      drawTrail(ctx, p.trail, alpha, particleSize * 0.5);
+
+      const extra = {
+        flicker: Math.sin(now * 0.02 + p.wobblePhase) * 0.5 + 0.5,
+        spin: p.spinDir * pt * Math.PI * 2.2,
+      };
+      drawParticle(ctx, style.shape, x, y, p.angle, alpha, particleSize, extra);
     });
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;

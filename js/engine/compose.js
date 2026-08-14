@@ -1,6 +1,7 @@
 // Resolves a placed sigil + signs into effect parameters. Pure function.
 // No rendering or storage here, this is the part that has to be honest.
 const EPSILON = 1e-6;
+const DIRECTIONAL_FAMILIES = ["straightOut", "straightIn"];
 
 function composeSpell({ sigilId, signs, ringComplete }) {
   const warnings = [];
@@ -41,7 +42,27 @@ function composeSpell({ sigilId, signs, ringComplete }) {
 
   // More Diamond signs make the ring more forgiving of a near-canceled push.
   const instabilityThreshold = Math.max(0.05, 0.15 - acc.stability * 0.04);
-  const columnsCancel = acc.directional > EPSILON && magnitude < instabilityThreshold;
+  const netsToZero = acc.directional > EPSILON && magnitude < instabilityThreshold;
+
+  // Three or more directional signs spread most of the way around the ring
+  // net to zero by construction (they're pushing outward in every
+  // direction at once), the same way Light Beam's four Column signs at
+  // north/east/south/west do. That's a beacon, not a mistake, so it
+  // shouldn't read as a misfire the way two signs directly opposing each
+  // other does.
+  const directionalSigns = signs.filter((s) => DIRECTIONAL_FAMILIES.includes(familyKeyOf(s.archetypeId)));
+  let radiantCoverage = 0;
+  if (directionalSigns.length >= 3) {
+    const angles = directionalSigns.map((s) => s.angle).sort((a, b) => a - b);
+    let maxGap = 0;
+    for (let i = 0; i < angles.length; i++) {
+      const next = i + 1 < angles.length ? angles[i + 1] : angles[0] + Math.PI * 2;
+      maxGap = Math.max(maxGap, next - angles[i]);
+    }
+    radiantCoverage = Math.PI * 2 - maxGap;
+  }
+  const isRadiant = netsToZero && radiantCoverage > Math.PI * 1.3;
+  const columnsCancel = netsToZero && !isRadiant;
 
   if (signs.length === 0) {
     warnings.push("No signs placed, effect will be weak.");
@@ -55,7 +76,8 @@ function composeSpell({ sigilId, signs, ringComplete }) {
     spreadRatio,
     sustainRatio,
     intensity,
-    hasDirection: acc.directional > EPSILON && !columnsCancel,
+    hasDirection: acc.directional > EPSILON && !netsToZero,
+    isRadiant,
   };
 
   const label = buildLabel(sigil, params, columnsCancel);
@@ -74,6 +96,7 @@ function composeSpell({ sigilId, signs, ringComplete }) {
 function buildLabel(sigil, params, columnsCancel) {
   if (!sigil) return "no element chosen";
   if (columnsCancel) return `${sigil.name.toLowerCase()}, no net direction, signs cancel out`;
+  if (params.isRadiant) return `${sigil.name.toLowerCase()}, radiates outward in every direction`;
 
   const parts = [sigil.name.toLowerCase()];
   parts.push(params.hasDirection ? `${Vector.compassLabel(params.direction)} direction` : "no directional bias");

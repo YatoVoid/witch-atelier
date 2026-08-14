@@ -198,6 +198,17 @@
     recompute();
   });
 
+  // ---- Clear: start the current spell over, keep the chosen element ----
+  document.getElementById("clear-btn").addEventListener("click", () => {
+    state.signs = [];
+    state.ringComplete = false;
+    ringToggle.classList.remove("active");
+    ringToggle.textContent = "Ring open";
+    lastDrawnEl.textContent = "";
+    renderSignList();
+    recompute();
+  });
+
   // ---- Placed signs list (fine control + accessible alternative to drawing) ----
   const signList = document.getElementById("sign-list");
   function renderSignList() {

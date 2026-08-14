@@ -18,7 +18,7 @@ const SPELLBOOK = [
   { name: "Grasping Wind", image: "assets/spells/grasping-wind.webp", description: "Wind sigil surrounded by inward-facing pulling signs. Draws a current of air, and whatever is in it, toward the seal." },
   { name: "Illusory Labyrinth", image: "assets/spells/illusory-labyrinth.webp", description: null },
   { name: "Integration", image: "assets/spells/integration.webp", description: null },
-  { name: "Light Beam", image: "assets/spells/light-beam.webp", description: null },
+  { name: "Light Beam", image: "assets/spells/light-beam.webp", description: "Light sigil surrounded by four Column signs at north, east, south, and west, each pushing outward from where it sits. Radiates outward in every direction rather than a single directional beam." },
   { name: "Light Tracer", image: "assets/spells/light-tracer.webp", description: null },
   { name: "Memory Erasure", image: "assets/spells/memory-erasure.webp", description: "The one spell permitted to affect the human body under the Day of the Pact. Used by the Knights Moralis to erase memory of forbidden magic." },
   { name: "Mirror Spell", image: "assets/spells/mirror-spell.webp", description: null },
