@@ -46,65 +46,31 @@ function drawRing(ctx, cx, cy, r, complete) {
   ctx.setLineDash([]);
 }
 
-// Procedural glyph paths, in local coordinates (unit radius). Kept as point
-// lists so they render through the same ink-stroke renderer as hand-drawn
-// signs instead of looking mechanically distinct.
-const SIGIL_PATHS = {
-  fire: (s) =>
-    [0, 1, 2].map((i) => {
-      const a = (Math.PI * 2 * i) / 3 - Math.PI / 2;
-      return [
-        { x: 0, y: 0 },
-        { x: Math.cos(a) * s, y: Math.sin(a) * s },
-      ];
-    }),
-  water: (s) =>
-    [-1, 0, 1].map((i) => [
-      { x: -s, y: i * s * 0.5 },
-      { x: -s * 0.3, y: i * s * 0.5 - s * 0.4 },
-      { x: s * 0.3, y: i * s * 0.5 - s * 0.4 },
-      { x: s, y: i * s * 0.5 },
-    ]),
-  // Three-bladed whorl. The wiki describes the air sigil as three-sided,
-  // distinct from the other air-family sigils, with a noted resemblance to
-  // the fire sigil's three spokes. This is an original shape built from
-  // that description, not a trace of any published artwork.
-  air: (s) =>
-    [0, 1, 2].map((i) => {
-      const a = (Math.PI * 2 * i) / 3 - Math.PI / 2;
-      const perp = a + Math.PI / 2;
-      return [
-        { x: 0, y: 0 },
-        { x: Math.cos(a) * s * 0.45 + Math.cos(perp) * s * 0.25, y: Math.sin(a) * s * 0.45 + Math.sin(perp) * s * 0.25 },
-        { x: Math.cos(a) * s, y: Math.sin(a) * s },
-      ];
-    }),
-  earth: (s) => [
-    [
-      { x: 0, y: -s },
-      { x: s, y: 0 },
-      { x: 0, y: s },
-      { x: -s, y: 0 },
-      { x: 0, y: -s },
-    ],
-  ],
-  light: (s) =>
-    Array.from({ length: 8 }, (_, i) => {
-      const a = (Math.PI * 2 * i) / 8;
-      return [
-        { x: Math.cos(a) * s * 0.3, y: Math.sin(a) * s * 0.3 },
-        { x: Math.cos(a) * s, y: Math.sin(a) * s },
-      ];
-    }),
-};
+// Sigil glyphs are drawn images (the user's own reconstructions of the
+// canon glyphs), not procedural shapes. Loaded lazily and cached; the
+// redraw callback fires once an image finishes loading so it appears
+// without waiting on the next unrelated state change.
+const imageCache = {};
+let onImageLoaded = null;
+function setImageLoadedCallback(fn) {
+  onImageLoaded = fn;
+}
+function getImage(src) {
+  if (imageCache[src]) return imageCache[src];
+  const img = new Image();
+  img.src = src;
+  img.onload = () => onImageLoaded && onImageLoaded();
+  imageCache[src] = img;
+  return img;
+}
 
 function drawSigil(ctx, cx, cy, r, sigilId) {
-  const build = SIGIL_PATHS[sigilId];
-  if (!build) return;
-  ctx.save();
-  ctx.translate(cx, cy);
-  build(r).forEach((sub) => strokePath(ctx, sub, 2.5));
-  ctx.restore();
+  const sigil = getSigil(sigilId);
+  if (!sigil) return;
+  const img = getImage(sigil.image);
+  if (img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+  }
 }
 
 function drawSign(ctx, cx, cy, instance) {
@@ -115,7 +81,8 @@ function drawSign(ctx, cx, cy, instance) {
   const width = 2 + instance.length * 2.5;
   strokePath(ctx, local, width);
 
-  if (instance.archetypeId === "column" || instance.archetypeId === "pulling") {
+  const directionalIds = ["column", "crosshair", "enlarge", "pull", "direction", "collection", "bend"];
+  if (directionalIds.includes(instance.archetypeId)) {
     const tip = local[local.length - 1];
     const prev = local[Math.max(0, local.length - 2)];
     drawArrowhead(ctx, tip.x, tip.y, prev.x, prev.y, 7 + instance.length * 3);

@@ -33,6 +33,8 @@
     drawScene(ctx, size, state);
   }
 
+  setImageLoadedCallback(render);
+
   function recompute() {
     const result = composeSpell(state);
     renderReadout(result);
@@ -61,9 +63,14 @@
   const sigilPalette = document.getElementById("sigil-palette");
   SIGILS.forEach((sigil) => {
     const btn = document.createElement("button");
-    btn.className = "chip";
-    btn.textContent = sigil.name;
+    btn.className = "chip chip-image";
     btn.dataset.sigil = sigil.id;
+    const img = document.createElement("img");
+    img.src = sigil.image;
+    img.alt = "";
+    const label = document.createElement("span");
+    label.textContent = sigil.name;
+    btn.append(img, label);
     btn.addEventListener("click", () => {
       state.sigilId = sigil.id;
       [...sigilPalette.children].forEach((c) => c.classList.remove("active"));
@@ -78,13 +85,19 @@
   SIGN_ARCHETYPES.forEach((archetype) => {
     const row = document.createElement("div");
     row.className = "shape-guide-row";
+    const img = document.createElement("img");
+    img.src = archetype.image;
+    img.alt = "";
+    img.className = "shape-guide-thumb";
+    const text = document.createElement("div");
     const name = document.createElement("span");
     name.className = "shape-guide-name";
     name.textContent = archetype.name;
     const hint = document.createElement("span");
     hint.className = "shape-guide-hint";
     hint.textContent = archetype.short;
-    row.append(name, hint);
+    text.append(name, hint);
+    row.append(img, text);
     signPalette.appendChild(row);
   });
 
@@ -173,13 +186,43 @@
       const row = document.createElement("div");
       row.className = "sign-row";
 
+      const thumb = document.createElement("img");
+      thumb.className = "sign-row-thumb";
+      thumb.src = archetype.image;
+      thumb.alt = "";
+      row.appendChild(thumb);
+
       const label = document.createElement("span");
       label.className = "sign-row-label";
       let orientation = "";
       if (instance.archetypeId === "column") orientation = instance.inverted ? " · pull" : " · push";
-      if (instance.archetypeId === "pulling") orientation = " · pull";
-      label.textContent = `${archetype.name} · ${Math.round(Vector.toBearing(instance.angle))}°${orientation}`;
+      if (["pull", "direction", "collection"].includes(instance.archetypeId)) orientation = " · inward";
+      label.textContent = `${Math.round(Vector.toBearing(instance.angle))}°${orientation}`;
       row.appendChild(label);
+
+      const candidates = bucketCandidates(instance.archetypeId);
+      if (candidates.length > 1) {
+        const select = document.createElement("select");
+        select.className = "sign-row-select";
+        candidates.forEach((id) => {
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = getArchetype(id).name;
+          if (id === instance.archetypeId) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener("change", () => {
+          instance.archetypeId = select.value;
+          renderSignList();
+          recompute();
+        });
+        row.appendChild(select);
+      } else {
+        const name = document.createElement("span");
+        name.className = "sign-row-name";
+        name.textContent = archetype.name;
+        row.appendChild(name);
+      }
 
       const slider = document.createElement("input");
       slider.type = "range";
@@ -315,6 +358,30 @@
     renderSignList();
     recompute();
     document.getElementById("import-code").value = "";
+  });
+
+  // ---- Spellbook gallery ----
+  const spellbookEl = document.getElementById("spellbook");
+  SPELLBOOK.forEach((spell) => {
+    const card = document.createElement("figure");
+    card.className = "spellbook-card";
+    const img = document.createElement("img");
+    img.src = spell.image;
+    img.alt = spell.name;
+    img.loading = "lazy";
+    const caption = document.createElement("figcaption");
+    const title = document.createElement("span");
+    title.className = "spellbook-title";
+    title.textContent = spell.name;
+    caption.appendChild(title);
+    if (spell.description) {
+      const desc = document.createElement("span");
+      desc.className = "spellbook-desc";
+      desc.textContent = spell.description;
+      caption.appendChild(desc);
+    }
+    card.append(img, caption);
+    spellbookEl.appendChild(card);
   });
 
   // ---- init ----

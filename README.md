@@ -14,35 +14,41 @@ Open `http://localhost:8000`.
 
 ## How it works
 
-Nothing is pre-selected before you draw a sign. You draw a stroke anywhere on the circle, and its shape decides which archetype it becomes:
+Nothing is pre-selected before you draw a sign. You draw a stroke anywhere on the circle, and its shape decides which family it belongs to:
 
-- straight, drawn outward: Column (push)
-- straight, drawn inward: Pulling
-- wide sweep across many angles, outward: Dispersion
-- wide sweep, inward: Convergence
-- gentle back-and-forth wiggle that doesn't travel far from where it started: Levitation
-- sharp zigzag: Bolt
-- closed loop, drawn smoothly: Diamond
-- closed loop, drawn chaotically: Crushing
+- straight, drawn outward: Column, Crosshair, or Enlarge
+- straight, drawn inward: Pull or Direction
+- wide sweep across many angles, outward: Dispersion, Radial, Rain, Billowing, or Weave
+- wide sweep, inward: Convergence, Window, or Collection
+- gentle back-and-forth wiggle that doesn't travel far from where it started: Levitation, Float, Bird, Dancing Puppet, Eye, or Vision
+- sharp zigzag: Bolt or Bend
+- closed loop, drawn smoothly: Diamond or Repetition
+- closed loop, drawn chaotically: Crush
 
-- `js/engine/classify.js`: reads a raw stroke's geometry (straightness, angular spread from the ring's center, turning/zigzag, whether it closes into a loop) and returns which archetype it is. Deterministic heuristics, no model, no network call.
-- `js/data/sigils.js`: the elements (fire, water, air, earth, light).
-- `js/data/signs.js`: the sign archetypes. Each one only needs a `contribute(accumulator, instance)` function describing how it affects direction, spread, sustain, or raw intensity.
+There's no shape difference between the signs within a family in the source material either. The stroke narrows it to a family; the sign-list row shows the rest of that family in a dropdown so you can say which one you actually meant, rather than the app pretending to detect a distinction that isn't there in the drawing.
+
+- `js/engine/classify.js`: reads a raw stroke's geometry (straightness, angular spread from the ring's center, turning/zigzag, whether it closes into a loop) and returns a family and its default member. Deterministic heuristics, no model, no network call.
+- `js/data/sigils.js`: the 8 elements (fire, water, earth, light, wind, wind underfoot, aeriforms, crystal).
+- `js/data/signs.js`: the 24 sign archetypes, matching the named signs documented on the wiki. Each one has a `contribute(accumulator, instance)` function describing how it affects direction, spread, sustain, or raw intensity. Where the wiki doesn't document a sign's function (Bird, Eye, Vision, Dancing Puppet, Window), the comment says so, it's a placeholder grouped by feel, not a sourced fact.
+- `js/data/spellbook.js`: 40 named canon spells for the reference gallery. Descriptions are only included where the wiki documents what the spell actually does; the rest show image and name only rather than a guessed description.
 - `js/engine/compose.js`: pure function that reduces a chosen sigil + drawn signs into resolved parameters (direction, magnitude, spread, sustain, intensity) and an honest readout, including misfire warnings when directional signs cancel out.
-- `js/engine/render.js`: canvas rendering: the ring, the sigil glyph, the drawn sign strokes (rendered from your actual recorded points, not a synthetic redraw), and the cast animation.
+- `js/engine/render.js`: canvas rendering. The ring and sign strokes are drawn from your actual recorded points. The sigil glyph is drawn from an image (see below).
 - `js/engine/vector.js`: angle and compass-bearing math. Canvas angles put 0 degrees at east with y growing downward; `toBearing()` converts that to a map-style compass, 0 degrees at north, increasing clockwise, since that's what the readout displays.
 - `js/grimoire.js`: localStorage persistence and spell-code export/import. A spell is fully described by its data, so sharing one is just sharing a string, no server needed.
 
-Direction and strength are computed, not looked up: each directional sign (Column, Pulling) contributes a force vector from its angle and drawn length, and the net direction/skew come from summing those vectors. Nothing about a specific element x sign combination is hardcoded. `compose.js` assembles the readout label from whatever generic parameters the placed signs happen to produce.
+Direction and strength are computed, not looked up: each directional sign contributes a force vector from its angle and drawn length, and the net direction/skew come from summing those vectors. Nothing about a specific element x sign combination is hardcoded. `compose.js` assembles the readout label from whatever generic parameters the placed signs happen to produce.
 
-On the sigils: the five elements' glyphs here (three spokes for fire, a three-bladed whorl for air, and so on) are original shapes, not traced from the manga's artwork. Reproducing the source material's actual glyph designs pixel-for-pixel isn't something this project does, both because that art is copyrighted and because it isn't available as data this tool can read. The air sigil's three-bladed shape follows a documented detail (the wiki describes it as three-sided, unlike the other air-family sigils, with a noted resemblance to the fire sigil), not a copy of the drawn glyph itself.
+## The artwork
+
+The sigil and sign glyphs in `assets/` are hand-drawn reconstructions of the canon designs, not traced from the manga's published pages. The spellbook gallery images are the same. This project doesn't reproduce the source material's actual printed artwork; that's copyrighted, and it also isn't available as data this tool could read even if that were the intent.
 
 ## Adding a new sigil or sign
 
 This is the part meant to grow as more of the source material's rules get pinned down.
 
-- **New element**: add an entry to `SIGILS` in `js/data/sigils.js` (name, particle style for the cast animation) and a case in `SIGIL_PATHS` in `js/engine/render.js` for its glyph shape. Nothing else changes.
-- **New sign archetype**: add an entry to `SIGN_ARCHETYPES` in `js/data/signs.js` with a `contribute()` function, and a rule in `classifyStroke()` in `js/engine/classify.js` for what shape triggers it. `compose.js`, the shape guide, and the readout all pick it up automatically.
+- **New element**: add an entry to `SIGILS` in `js/data/sigils.js` (name, particle style, image path) and put the image at that path. Nothing else changes.
+- **New sign archetype**: add an entry to `SIGN_ARCHETYPES` in `js/data/signs.js` with a `contribute()` function and image path, and add it to the right family (or a new one) in `SIGN_BUCKETS` in `js/engine/classify.js`.
+- **New spellbook entry**: add a row to `SPELLBOOK` in `js/data/spellbook.js` with an image path, and a `description` only if the wiki actually documents what it does.
 
 ## Deploying to GitHub Pages
 

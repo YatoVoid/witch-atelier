@@ -118,6 +118,21 @@ h2:first-child {
   color: var(--paper);
 }
 
+.chip-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.3rem;
+}
+
+.chip-image img {
+  width: 1.6rem;
+  height: 1.6rem;
+  object-fit: contain;
+  background: var(--paper);
+  border-radius: 50%;
+}
+
 .hint {
   font-size: 0.85rem;
   color: var(--ink-soft);
@@ -132,10 +147,19 @@ h2:first-child {
 
 .shape-guide-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
   font-size: 0.85rem;
-  padding: 0.3rem 0;
+  padding: 0.35rem 0;
   border-bottom: 1px solid var(--line);
+}
+
+.shape-guide-thumb {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .shape-guide-name {
@@ -238,7 +262,7 @@ h2:first-child {
 
 .sign-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(80px, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0;
@@ -246,9 +270,29 @@ h2:first-child {
   font-size: 0.85rem;
 }
 
+.sign-row-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+
 .sign-row-label {
   font-family: var(--font-mono);
   color: var(--ink-soft);
+}
+
+.sign-row-name {
+  font-family: var(--font-mono);
+}
+
+.sign-row-select {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  padding: 0.15rem 0.3rem;
 }
 
 .mini-btn {
@@ -363,6 +407,49 @@ h2:first-child {
 
 .grimoire-title:hover {
   text-decoration: underline;
+}
+
+.spellbook-section {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+.spellbook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.spellbook-card {
+  margin: 0;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.spellbook-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
+
+.spellbook-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+}
+
+.spellbook-desc {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin-top: 0.25rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

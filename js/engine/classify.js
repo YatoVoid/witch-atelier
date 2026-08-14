@@ -46,6 +46,32 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
+// Simple geometry can only tell families of shape apart, not which of the
+// 24 named signs you meant within a family (a straight outward line could
+// be Column, Crosshair, or Enlarge; there's no shape difference between
+// them in the source material either, they're distinguished by context).
+// classifyStroke() returns the family's most common member as a default.
+// Each sign row in the UI offers the rest of its family as alternatives, so
+// the shape narrows it down and you make the final call, rather than the
+// app pretending to detect a difference that isn't there in the drawing.
+const SIGN_BUCKETS = {
+  straightOut: ["column", "crosshair", "enlarge"],
+  straightIn: ["pull", "direction"],
+  wideOut: ["dispersion", "radial", "rain", "billowing", "weave"],
+  wideIn: ["convergence", "window", "collection"],
+  wavy: ["levitation", "float", "bird", "dancing-puppet", "eye", "vision"],
+  zigzag: ["bolt", "bend"],
+  closedSmooth: ["diamond", "repetition"],
+  closedChaotic: ["crush"],
+};
+
+function bucketCandidates(archetypeId) {
+  for (const key in SIGN_BUCKETS) {
+    if (SIGN_BUCKETS[key].includes(archetypeId)) return SIGN_BUCKETS[key];
+  }
+  return [archetypeId];
+}
+
 function classifyStroke(rawPoints) {
   if (rawPoints.length < 2) return null;
   const points = resample(rawPoints, 20);
@@ -90,9 +116,9 @@ function classifyStroke(rawPoints) {
   const spread = angularSpread(points);
 
   const closedShape = loopClosure > 0.6 && arcLength > boundSize * 0.7;
-  if (closedShape) return avgTurning < 0.6 ? "diamond" : "crushing";
+  if (closedShape) return avgTurning < 0.6 ? "diamond" : "crush";
   if (sharpTurns >= 3 && loopClosure < 0.5) return "bolt";
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  if (straightness > 0.85) return radialDelta >= 0 ? "column" : "pulling";
+  if (straightness > 0.85) return radialDelta >= 0 ? "column" : "pull";
   return "levitation";
 }
