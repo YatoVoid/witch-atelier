@@ -73,18 +73,21 @@ function drawSigil(ctx, cx, cy, r, sigilId) {
   }
 }
 
+// A sign is one or more strokes (see classify.js: most reference glyphs are
+// a spine plus a tick or two, not one continuous line), so instance.paths
+// is an array of point lists, each rendered as its own ink stroke.
 function drawSign(ctx, cx, cy, instance) {
-  if (!instance.path || instance.path.length < 2) return;
-  const local = instance.path.map((p) => ({ x: p.x, y: p.y }));
+  if (!instance.paths || instance.paths.length === 0) return;
   ctx.save();
   ctx.translate(cx, cy);
   const width = 2 + instance.length * 2.5;
-  strokePath(ctx, local, width);
+  instance.paths.forEach((path) => strokePath(ctx, path, width));
 
   const directionalIds = ["column", "crosshair", "enlarge", "pull", "direction", "collection", "bend"];
   if (directionalIds.includes(instance.archetypeId)) {
-    const tip = local[local.length - 1];
-    const prev = local[Math.max(0, local.length - 2)];
+    const spine = instance.paths.reduce((a, b) => (b.length > a.length ? b : a));
+    const tip = spine[spine.length - 1];
+    const prev = spine[Math.max(0, spine.length - 2)];
     drawArrowhead(ctx, tip.x, tip.y, prev.x, prev.y, 7 + instance.length * 3);
   }
   ctx.restore();
@@ -100,6 +103,13 @@ function drawScene(ctx, size, state) {
   if (state.sigilId) drawSigil(ctx, cx, cy, ringR * 0.28, state.sigilId);
   state.signs.forEach((instance) => drawSign(ctx, cx, cy, instance));
 
+  if (state.groupPaths && state.groupPaths.length > 0) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = 0.55;
+    state.groupPaths.forEach((path) => strokePath(ctx, path, 3));
+    ctx.restore();
+  }
   if (state.livePath && state.livePath.length > 1) {
     ctx.save();
     ctx.translate(cx, cy);
@@ -109,12 +119,111 @@ function drawScene(ctx, size, state) {
   }
 }
 
-function castEffect(canvas, size, params, sigil, sceneState, duration = 900) {
+function drawRingPulse(ctx, cx, cy, ringR, t) {
+  const pulseT = Math.min(1, t / 0.35);
+  if (pulseT >= 1) return;
+  const ease = 1 - Math.pow(1 - pulseT, 2);
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = (1 - pulseT) * 0.5;
+  ctx.strokeStyle = "#14120f";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR * (1 + ease * 0.12), 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSigilPulse(ctx, cx, cy, r, sigilId, t) {
+  const pulseT = Math.min(1, t / 0.4);
+  if (pulseT >= 1) return;
+  const sigil = getSigil(sigilId);
+  if (!sigil) return;
+  const img = getImage(sigil.image);
+  if (!(img.complete && img.naturalWidth > 0)) return;
+  const ease = Math.sin(pulseT * Math.PI);
+  const rr = r * (1 + ease * 0.25);
+  ctx.save();
+  ctx.globalAlpha = ease * 0.6;
+  ctx.drawImage(img, cx - rr, cy - rr, rr * 2, rr * 2);
+  ctx.restore();
+}
+
+// Each element gets a distinct particle shape instead of a generic dot, so
+// the cast at least reads as "which element" at a glance.
+function drawParticle(ctx, shape, x, y, angle, alpha, size) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#14120f";
+  ctx.strokeStyle = "#14120f";
+  switch (shape) {
+    case "spark": {
+      const len = size * 2.4;
+      ctx.lineWidth = size * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(angle) * len, y - Math.sin(angle) * len);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      break;
+    }
+    case "droplet": {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle + Math.PI / 2);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size * 0.65, size * 1.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case "wisp": {
+      ctx.save();
+      ctx.shadowColor = "rgba(20, 18, 15, 0.5)";
+      ctx.shadowBlur = size * 1.6;
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 1.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case "shard": {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(-size * 0.9, -size * 0.5);
+      ctx.lineTo(size * 0.9, 0);
+      ctx.lineTo(-size * 0.9, size * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case "beam": {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.fillRect(-1, -size * 1.6, 2, size * 3.2);
+      ctx.restore();
+      break;
+    }
+    default: {
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function castEffect(canvas, size, params, sigil, sceneState, duration = 950) {
   const ctx = canvas.getContext("2d");
   const cx = size / 2;
   const cy = size / 2;
-  const count = 26;
+  const ringR = size * RING_RATIO;
+  const count = 30;
   const style = sigil ? sigil.particle : { shape: "spark" };
+  const particleSize = 2 + Math.min(params.intensity, 2.5);
   const particles = Array.from({ length: count }, () => {
     const spread = params.spreadRatio * Math.PI * 2 + 0.3;
     const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
@@ -122,33 +231,31 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 900) {
       ? baseAngle + (Math.random() - 0.5) * spread * 0.6
       : Math.random() * Math.PI * 2;
     const speed = (0.4 + Math.random() * 0.6) * (0.5 + params.intensity);
-    return { angle, speed, offset: Math.random() * 0.4 };
+    const wobblePhase = Math.random() * Math.PI * 2;
+    return { angle, speed, offset: Math.random() * 0.35, wobblePhase };
   });
 
   const start = performance.now();
   function frame(now) {
     const t = Math.min(1, (now - start) / duration);
     drawScene(ctx, size, sceneState);
-    ctx.save();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#14120f";
+    drawRingPulse(ctx, cx, cy, ringR, t);
+    if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t);
+
     particles.forEach((p) => {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);
       if (pt <= 0) return;
-      const dist = pt * size * 0.4 * p.speed;
-      const x = cx + Math.cos(p.angle) * dist;
-      const y = cy + Math.sin(p.angle) * dist;
-      ctx.globalAlpha = 1 - pt;
-      if (style.shape === "beam") {
-        ctx.fillRect(x - 1, y - 6, 2, 12);
-      } else {
-        ctx.beginPath();
-        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      const eased = 1 - Math.pow(1 - pt, 2);
+      const dist = eased * size * 0.42 * p.speed;
+      const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 : 0;
+      const perp = p.angle + Math.PI / 2;
+      const x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
+      const y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble;
+      drawParticle(ctx, style.shape, x, y, p.angle, 1 - pt, particleSize);
     });
-    ctx.restore();
     ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
     if (t < 1) requestAnimationFrame(frame);
     else drawScene(ctx, size, sceneState);
   }

@@ -1,7 +1,8 @@
-// Reads the shape of a drawn stroke and picks which sign archetype it is.
-// Nothing is pre-selected before drawing: the geometry decides. Deterministic
-// heuristics, no network call and no model, so it runs instantly and the same
-// shape always classifies the same way.
+// Reads the shape of a drawn sign (one or more strokes, since most of the
+// reference glyphs are a few short parts combined, not one continuous line)
+// and picks which family it belongs to. Deterministic heuristics, no
+// network call and no model, so it runs instantly and the same shape always
+// classifies the same way.
 function strokeLength(points) {
   let total = 0;
   for (let i = 1; i < points.length; i++) {
@@ -46,14 +47,35 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
+// Sharp direction reversals within a single stroke. Never compared across
+// two separate strokes, a pen lift between parts isn't a turn.
+function sharpTurnCount(points) {
+  let count = 0;
+  let prevHeading = null;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    if (Math.hypot(dx, dy) < 0.5) continue;
+    const heading = Math.atan2(dy, dx);
+    if (prevHeading !== null) {
+      let diff = heading - prevHeading;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      if (Math.abs(diff) > 1.1) count++;
+    }
+    prevHeading = heading;
+  }
+  return count;
+}
+
 // Simple geometry can only tell families of shape apart, not which of the
 // 24 named signs you meant within a family (a straight outward line could
 // be Column, Crosshair, or Enlarge; there's no shape difference between
 // them in the source material either, they're distinguished by context).
-// classifyStroke() returns the family's most common member as a default.
-// Each sign row in the UI offers the rest of its family as alternatives, so
-// the shape narrows it down and you make the final call, rather than the
-// app pretending to detect a difference that isn't there in the drawing.
+// classifyStrokeGroup() returns the family's most common member as a
+// default. Each sign row in the UI offers the rest of its family as
+// alternatives, so the shape narrows it down and you make the final call,
+// rather than the app pretending to detect a distinction that isn't there.
 const SIGN_BUCKETS = {
   straightOut: ["column", "crosshair", "enlarge"],
   straightIn: ["pull", "direction"],
@@ -72,9 +94,22 @@ function bucketCandidates(archetypeId) {
   return [archetypeId];
 }
 
-function classifyStroke(rawPoints) {
-  if (rawPoints.length < 2) return null;
-  const points = resample(rawPoints, 20);
+// A sign is one or more strokes drawn close together in time (see app.js's
+// grouping window). Most of the reference glyphs are a short spine plus one
+// or two small ticks or caps, so the spine (the longest stroke) carries the
+// direction and shape; the shorter strokes only get checked for a zigzag
+// (any part drawn as a zigzag reads as Bolt/Bend regardless of the rest).
+function classifyStrokeGroup(paths) {
+  const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
+  if (valid.length === 0) return null;
+
+  for (const path of valid) {
+    const resampled = resample(path, Math.min(20, Math.max(6, path.length)));
+    if (sharpTurnCount(resampled) >= 3) return "bolt";
+  }
+
+  const spine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const points = resample(spine, 20);
   const start = points[0];
   const end = points[points.length - 1];
   const arcLength = strokeLength(points);
@@ -94,31 +129,12 @@ function classifyStroke(rawPoints) {
   }
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
   const loopClosure = Math.max(0, 1 - chordLength / boundSize);
-
-  let totalTurning = 0;
-  let sharpTurns = 0;
-  let prevHeading = null;
-  for (let i = 1; i < points.length; i++) {
-    const dx = points[i].x - points[i - 1].x;
-    const dy = points[i].y - points[i - 1].y;
-    if (Math.hypot(dx, dy) < 0.5) continue;
-    const heading = Math.atan2(dy, dx);
-    if (prevHeading !== null) {
-      let diff = heading - prevHeading;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      totalTurning += Math.abs(diff);
-      if (Math.abs(diff) > 1.1) sharpTurns++;
-    }
-    prevHeading = heading;
-  }
-  const avgTurning = totalTurning / (points.length - 1);
-  const spread = angularSpread(points);
-
   const closedShape = loopClosure > 0.6 && arcLength > boundSize * 0.7;
-  if (closedShape) return avgTurning < 0.6 ? "diamond" : "crush";
-  if (sharpTurns >= 3 && loopClosure < 0.5) return "bolt";
+  if (closedShape) return sharpTurnCount(points) < 2 ? "diamond" : "crush";
+
+  const allPoints = valid.flatMap((p) => p);
+  const spread = angularSpread(allPoints);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  if (straightness > 0.85) return radialDelta >= 0 ? "column" : "pull";
+  if (straightness > 0.8) return radialDelta >= 0 ? "column" : "pull";
   return "levitation";
 }

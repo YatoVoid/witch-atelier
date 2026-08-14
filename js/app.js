@@ -9,10 +9,14 @@
     signs: [],
     ringComplete: false,
     livePath: null,
+    groupPaths: [],
   };
+
+  const GROUP_WINDOW_MS = 700; // pause this long to lock in a multi-part sign
 
   let drawing = false;
   let rawPoints = []; // client-space points for the in-progress stroke
+  let groupTimer = null;
 
   function resizeCanvas() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -102,9 +106,17 @@
   });
 
   // ---- Freehand stroke capture: draw anywhere, any shape, any length ----
-  // No archetype is picked beforehand. The shape you draw is classified after
-  // the stroke ends, in engine/classify.js.
+  // No archetype is picked beforehand. A sign can be one or more strokes:
+  // most of the reference glyphs are a spine plus a tick or two, not one
+  // continuous line, so after a stroke ends there's a short pause (below)
+  // during which another stroke starting counts as part of the same sign.
+  // Only once that pause elapses with nothing new does the group classify
+  // and lock in, in engine/classify.js.
   canvas.addEventListener("pointerdown", (e) => {
+    if (groupTimer) {
+      clearTimeout(groupTimer);
+      groupTimer = null;
+    }
     drawing = true;
     canvas.setPointerCapture(e.pointerId);
     rawPoints = [toLocal(e.clientX, e.clientY)];
@@ -123,23 +135,19 @@
   });
 
   const lastDrawnEl = document.getElementById("last-drawn");
+  let groupPaths = [];
 
-  function finishStroke() {
-    if (!drawing) return;
-    drawing = false;
-    state.livePath = null;
-    if (rawPoints.length < 2 || pathLength(rawPoints) < 8) {
-      // too short to be a deliberate stroke, discard rather than guess
-      rawPoints = [];
-      render();
-      return;
-    }
+  function finalizeGroup() {
+    groupTimer = null;
+    if (groupPaths.length === 0) return;
 
-    const archetypeId = classifyStroke(rawPoints);
-    const start = rawPoints[0];
-    const end = rawPoints[rawPoints.length - 1];
+    const archetypeId = classifyStrokeGroup(groupPaths);
+    const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
+    const start = spine[0];
+    const end = spine[spine.length - 1];
     const angle = Vector.angle(end.x, end.y);
-    const length = Math.max(0.15, Math.min(1.4, pathLength(rawPoints) / ringRadius()));
+    const totalLength = groupPaths.reduce((sum, p) => sum + pathLength(p), 0);
+    const length = Math.max(0.15, Math.min(1.4, totalLength / ringRadius()));
     const distFromCenterStart = Math.hypot(start.x, start.y);
     const distFromCenterEnd = Math.hypot(end.x, end.y);
     const inverted = distFromCenterEnd < distFromCenterStart; // drawn inward = pull
@@ -149,13 +157,29 @@
       angle,
       length,
       inverted,
-      path: rawPoints.slice(),
+      paths: groupPaths.slice(),
     });
-    rawPoints = [];
+    groupPaths = [];
+    state.groupPaths = groupPaths;
     const archetype = getArchetype(archetypeId);
     lastDrawnEl.textContent = `Read as: ${archetype.name} (${archetype.short})`;
     renderSignList();
     recompute();
+  }
+
+  function finishStroke() {
+    if (!drawing) return;
+    drawing = false;
+    state.livePath = null;
+    if (rawPoints.length >= 2 && pathLength(rawPoints) >= 8) {
+      groupPaths.push(rawPoints.slice());
+      state.groupPaths = groupPaths;
+      lastDrawnEl.textContent = "Drawing... (pause to lock in)";
+    }
+    rawPoints = [];
+    render();
+    if (groupTimer) clearTimeout(groupTimer);
+    groupTimer = setTimeout(finalizeGroup, GROUP_WINDOW_MS);
   }
 
   canvas.addEventListener("pointerup", finishStroke);
