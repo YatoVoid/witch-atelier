@@ -319,10 +319,20 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // need to sit close to either side.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
 
-  // Direction (outward/inward) for whatever family this turns out to be:
-  // averaged over a few points at each end rather than trusted from a
-  // single raw endpoint, since hand tremor swings a lone point's position
-  // more than it swings an average of several.
+  // Direction (outward/inward) for whatever family this turns out to be.
+  // Read from the longest single stroke, not from "first stroke's start
+  // to last stroke's end": a decoration (a cap, a tick, an arrowhead
+  // flourish) is often drawn as its own separate stroke, and whichever
+  // end of the gesture it happens to land nearest to has nothing to do
+  // with which way the sign was actually drawn. A decoration landing
+  // near the inner end, added after an unambiguously outward main line,
+  // used to read the whole sign as drawn inward, since the farthest
+  // point the main line actually reached was never even considered, only
+  // the first and last strokes' own endpoints were. The longest stroke is
+  // the actual gesture; decorations shouldn't be able to override it.
+  // Endpoints are averaged over a few points rather than trusted from a
+  // single raw one, since hand tremor swings a lone point's position more
+  // than it swings an average of several.
   function averagedEndpoint(points, fromEnd) {
     const n = Math.min(4, points.length);
     const slice = fromEnd ? points.slice(-n) : points.slice(0, n);
@@ -334,9 +344,10 @@ function classifyStrokeGroup(paths, extraTemplates) {
     }
     return { x: sx / slice.length, y: sy / slice.length };
   }
-  const overallStart = averagedEndpoint(valid[0], false);
-  const lastStroke = valid[valid.length - 1];
-  const overallEnd = averagedEndpoint(lastStroke, true);
+  const mainStroke = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const totalStrokeLength = valid.reduce((sum, p) => sum + strokeLength(p), 0);
+  const overallStart = averagedEndpoint(mainStroke, false);
+  const overallEnd = averagedEndpoint(mainStroke, true);
   const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
 
   // Wide sweeps (Dispersion/Convergence) are fundamentally about the
@@ -352,8 +363,20 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const spread = angularSpread(allPoints);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
 
-  const combined = valid.flat();
-  const match = matchShapeTemplate(combined, extraTemplates);
+  // Concatenating every stroke in drawing order (the only option before)
+  // works when several comparably-sized strokes together form the shape
+  // (a crosshair's four arms, a zigzag drawn as separate segments), but
+  // not when one stroke is clearly the actual gesture and another is a
+  // minor decoration landing wherever it happens to land relative to
+  // drawing order, an arrowhead barb or a cap added near whichever end
+  // felt natural. Concatenated regardless of position, that decoration
+  // can create a large "jump" in the shape between the main stroke's real
+  // endpoint and the decoration's position, which reads as a corner that
+  // was never actually drawn. mainStroke alone doesn't have that problem,
+  // so it's used whenever it already accounts for most of the ink, same
+  // threshold and reasoning as the old dominance check this replaced.
+  const shapeInput = strokeLength(mainStroke) / totalStrokeLength > 0.65 ? mainStroke : valid.flat();
+  const match = matchShapeTemplate(shapeInput, extraTemplates);
   if (match.label === "straight") return radialDelta >= 0 ? "column" : "pull";
   if (match.label === "wavy") return "levitation";
   return match.label; // "bend" or "bolt"

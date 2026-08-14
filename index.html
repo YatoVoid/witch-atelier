@@ -44,6 +44,17 @@
       </section>
 
       <section class="panel panel-circle" data-tab-panel="circle" aria-label="Spell circle">
+        <div id="calibration-banner" class="calibration-banner" hidden>
+          <p>New here — want to teach the sign reader your handwriting before you start? Draw a few examples of each basic shape (about a minute) and it'll match your style more closely from the start, not just after you've corrected it a bunch of times.</p>
+          <div class="calibration-banner-actions">
+            <button type="button" id="calibration-start" class="secondary-btn">Calibrate</button>
+            <button type="button" id="calibration-skip" class="mini-btn">Skip, I'll just draw</button>
+          </div>
+        </div>
+        <div id="calibration-step" class="calibration-step" hidden>
+          <p id="calibration-step-text"></p>
+          <button type="button" id="calibration-stop" class="mini-btn">Stop calibrating</button>
+        </div>
         <div class="circle-frame">
           <canvas id="circle"></canvas>
         </div>

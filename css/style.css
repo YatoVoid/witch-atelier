@@ -17,6 +17,17 @@
   box-sizing: border-box;
 }
 
+/* The browser's own [hidden] rule loses any cascade tie against an
+   author rule on the same element (an unconditional `display: flex`/
+   `grid`/etc. beats it even though `hidden` was clearly meant to win),
+   which has silently broken toggled-visibility UI here twice now
+   (the shape-guide dropdown once, a training picker once). Settling it
+   globally here instead of remembering to scope every future
+   `display` declaration around it by hand. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -356,6 +367,48 @@ h2:first-child {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.calibration-banner {
+  width: 100%;
+  max-width: 560px;
+  padding: 0.75rem 0.9rem;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.calibration-banner p {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.calibration-banner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.calibration-step {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--wash-strong);
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+}
+
+.calibration-step p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.calibration-step p strong {
+  font-family: var(--font-display);
 }
 
 #circle {

@@ -12,6 +12,26 @@
     groupPaths: [],
   };
 
+  // First-visit calibration: walks through drawing several examples of
+  // each shape the point-cloud matcher trains on (see js/training.js),
+  // saving each as a personal template up front instead of only ever
+  // learning from corrections after a misread. Offered once, tracked in
+  // localStorage the same way the grimoire and training examples already
+  // are (there's no server, so "first time without cookies" means "no
+  // local data yet" here) -- shown only if there's no saved training data
+  // AND it hasn't been explicitly dismissed, so skipping it once doesn't
+  // mean losing the option forever if the user calibrates by correcting
+  // instead and later wants the guided version.
+  const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
+  const CALIBRATION_SHAPES = [
+    { label: "straight", name: "Straight", instructions: "Draw a straight line. Any length, any direction." },
+    { label: "wavy", name: "Wavy", instructions: "Draw a gentle back-and-forth wiggle, a couple of soft curves." },
+    { label: "bend", name: "Bend", instructions: "Draw a single sharp corner, like a peak or a checkmark." },
+    { label: "bolt", name: "Bolt", instructions: "Draw a zigzag: a few sharp turns back and forth." },
+  ];
+  const CALIBRATION_REPS = 5; // examples collected per shape
+  let calibration = null; // { shapeIndex, rep } while active, else null
+
   // Every archetype the "wrong reading?" correction panel can set a sign
   // to. Straight and Wide Sweep are shape-symmetric (Column and Pull are
   // the exact same shape, only direction tells them apart, same for
@@ -192,6 +212,16 @@
     groupTimer = null;
     if (groupPaths.length === 0) return;
 
+    if (calibration) {
+      const shape = CALIBRATION_SHAPES[calibration.shapeIndex];
+      Training.save(groupPaths, shape.label);
+      groupPaths = [];
+      state.groupPaths = groupPaths;
+      render();
+      advanceCalibration();
+      return;
+    }
+
     const archetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
     const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
     const start = spine[0];
@@ -259,6 +289,58 @@
     renderSignList();
     recompute();
   });
+
+  // ---- First-visit calibration ----
+  const calibrationBanner = document.getElementById("calibration-banner");
+  const calibrationStepEl = document.getElementById("calibration-step");
+  const calibrationStepText = document.getElementById("calibration-step-text");
+
+  function dismissOnboarding() {
+    localStorage.setItem(ONBOARDING_KEY, "true");
+    calibrationBanner.hidden = true;
+  }
+
+  function renderCalibrationStep() {
+    const shape = CALIBRATION_SHAPES[calibration.shapeIndex];
+    calibrationStepText.innerHTML =
+      `<strong>${shape.name}</strong> (${calibration.rep + 1} of ${CALIBRATION_REPS}): ${shape.instructions}`;
+  }
+
+  function advanceCalibration() {
+    calibration.rep++;
+    if (calibration.rep >= CALIBRATION_REPS) {
+      calibration.rep = 0;
+      calibration.shapeIndex++;
+    }
+    if (calibration.shapeIndex >= CALIBRATION_SHAPES.length) {
+      stopCalibration(true);
+      return;
+    }
+    renderCalibrationStep();
+  }
+
+  function stopCalibration(completed) {
+    calibration = null;
+    calibrationStepEl.hidden = true;
+    dismissOnboarding();
+    lastDrawnEl.textContent = completed
+      ? "Calibration saved. Draw normally now, it'll use these examples alongside the built-in ones."
+      : "";
+  }
+
+  document.getElementById("calibration-start").addEventListener("click", () => {
+    calibrationBanner.hidden = true;
+    calibration = { shapeIndex: 0, rep: 0 };
+    calibrationStepEl.hidden = false;
+    renderCalibrationStep();
+  });
+
+  document.getElementById("calibration-skip").addEventListener("click", dismissOnboarding);
+  document.getElementById("calibration-stop").addEventListener("click", () => stopCalibration(false));
+
+  if (!localStorage.getItem(ONBOARDING_KEY) && Training.list().length === 0) {
+    calibrationBanner.hidden = false;
+  }
 
   // ---- Placed signs list (fine control + accessible alternative to drawing) ----
   const signList = document.getElementById("sign-list");
