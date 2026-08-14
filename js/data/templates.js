@@ -82,6 +82,13 @@ const SHAPE_TEMPLATES = {
     [
       { x: 49, y: 42 }, { x: 35, y: 24 }, { x: 29, y: 29 }, { x: 20, y: 42 },
     ],
+    // A real hand rarely draws a peak's two arms the same length or with
+    // the apex dead-centered; matchShapeTemplate mirrors the candidate
+    // internally, so only one chirality of an asymmetric peak needs to be
+    // here to cover both.
+    [
+      { x: -40, y: 36 }, { x: -16, y: 12 }, { x: 0, y: -40 }, { x: 11.2, y: -8.4 }, { x: 28, y: 23.8 },
+    ],
   ],
   bolt: [
     // Clean multi-turn zigzag, kept alongside the real glyph below for
@@ -143,15 +150,10 @@ const SHAPE_TEMPLATES = {
     // travel axis still outweighs the oscillation across it, so without a
     // template shaped like this the point cloud matches closer to
     // "straight" than to any wave template, no matter how much amplitude
-    // those other templates carry. The rotation search below only covers
-    // +/-45 degrees, not a mirror flip, so both left-first and
-    // right-first versions are needed -- a wave started with either hand
-    // motion has to match one of them.
+    // those other templates carry. matchShapeTemplate mirrors the
+    // candidate internally, so only one chirality needs to be here.
     [
       { x: 0, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 60 }, { x: 20, y: 90 }, { x: 0, y: 120 },
-    ],
-    [
-      { x: 0, y: 0 }, { x: -20, y: 30 }, { x: 0, y: 60 }, { x: -20, y: 90 }, { x: 0, y: 120 },
     ],
   ],
 };

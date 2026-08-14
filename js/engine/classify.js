@@ -232,8 +232,26 @@ function normalizedBuiltinTemplates() {
 // Matches a shape (points from one or more strokes, concatenated in
 // drawing order) against the shipped templates plus any extra ones
 // (already-normalized personal corrections) passed in.
+// bestAlignedDistance's rotation search only covers +/-45 degrees from the
+// indicative-angle alignment, not a full search, and never considers a
+// reflection at all. A real hand can draw the same shape mirrored (a peak
+// swept left-to-right instead of right-to-left, a hook curling the other
+// way) with no less legitimate a claim to the same sign. Rather than
+// storing a mirrored copy of every template, the candidate is matched in
+// both its original and mirrored form and the closer of the two wins --
+// covers every family/template at once, including personal corrections.
+// Mirroring has to happen on the RAW points, before normalization: the
+// indicative-angle step rotates so the first point sits due east, and
+// mirroring an already-normalized candidate flips that first point to
+// due west, which the rotation search's +/-45 degree window can't recover
+// from. Mirroring first and re-normalizing keeps the alignment honest.
+function mirrorPoints(points) {
+  return points.map((p) => ({ x: -p.x, y: p.y }));
+}
+
 function matchShapeTemplate(rawPoints, extraTemplates) {
   const candidate = normalizeForMatching(rawPoints);
+  const candidateMirrored = normalizeForMatching(mirrorPoints(rawPoints));
   const pools = [normalizedBuiltinTemplates()];
   if (extraTemplates) pools.push(extraTemplates);
 
@@ -242,7 +260,7 @@ function matchShapeTemplate(rawPoints, extraTemplates) {
   for (const pool of pools) {
     for (const label in pool) {
       for (const template of pool[label]) {
-        const d = bestAlignedDistance(candidate, template);
+        const d = Math.min(bestAlignedDistance(candidate, template), bestAlignedDistance(candidateMirrored, template));
         if (d < bestDistance) {
           bestDistance = d;
           bestLabel = label;
@@ -339,24 +357,19 @@ function classifyStrokeGroup(paths, extraTemplates) {
 
   // Matched against mainStroke alone once it's most of the ink, so a
   // decoration (an arrowhead barb) doesn't create a false "jump" when
-  // concatenated. Below that ratio, a genuine multi-arm hub is matched
-  // per-arm instead, since equal-length strokes have the same jump
-  // problem (a crosshair's arms rarely share an exact pixel).
+  // concatenated. Below that ratio, a genuine multi-arm hub is always
+  // Crosshair in this vocabulary -- returned directly from the structural
+  // fact (3+ strokes sharing an endpoint) rather than routed through a
+  // per-arm shape vote. A per-arm vote used to decide it instead, but a
+  // short arm's jitter can easily out-vote "straight" against a shape
+  // template it superficially resembles (a wave, a shallow corner)
+  // without the arm's own shape actually being ambiguous -- the hub
+  // structure alone is already unambiguous evidence of what this is.
   let match = null;
   if (strokeLength(mainStroke) / totalStrokeLength > 0.65) {
     match = matchShapeTemplate(mainStroke, extraTemplates);
   } else if (radiatesFromSharedHub(valid)) {
-    // Majority vote across arms rather than each arm against the stricter
-    // single-stroke confidence bar, which jitter on a short arm routinely
-    // fails without the arm's shape actually being ambiguous.
-    const perStroke = valid.map((s) => matchShapeTemplate(s, extraTemplates));
-    const counts = {};
-    for (const m of perStroke) counts[m.label] = (counts[m.label] || 0) + 1;
-    const majorityLabel = Object.keys(counts).reduce((a, b) => (counts[b] > counts[a] ? b : a));
-    match =
-      counts[majorityLabel] / valid.length >= 0.5
-        ? perStroke.filter((m) => m.label === majorityLabel).reduce((a, b) => (b.distance < a.distance ? b : a))
-        : matchShapeTemplate(valid.flat(), extraTemplates);
+    return "crosshair";
   } else {
     match = matchShapeTemplate(valid.flat(), extraTemplates);
   }

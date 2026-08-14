@@ -416,6 +416,70 @@ function realSign2() {
 check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "crosshair");
 realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "crosshair", 0.6);
 
+// ---- 5b. a bare peak (Direction/Bend's shared shape) has to read as
+// "bend" from any rotation and either hand chirality (mirrored), not just
+// the one orientation it happened to be traced at. Real hands rarely draw
+// a peak with equal arm lengths or a dead-centered apex either, so the
+// peak itself is built asymmetric and re-randomized per seed. ----
+function rotatePoints(points, deg) {
+  const r = (deg * Math.PI) / 180;
+  return points.map((p) => ({ x: p.x * Math.cos(r) - p.y * Math.sin(r), y: p.x * Math.sin(r) + p.y * Math.cos(r) }));
+}
+function mirrorPointsX(points) {
+  return points.map((p) => ({ x: -p.x, y: p.y }));
+}
+function asymmetricPeak(armA, armB, apexOffset) {
+  return [
+    { x: -armA, y: armA * 0.9 },
+    { x: -armA * 0.4, y: armA * 0.3 },
+    { x: apexOffset, y: -Math.max(armA, armB) },
+    { x: armB * 0.4, y: armB * 0.35 },
+    { x: armB, y: armB * 0.85 },
+  ];
+}
+const PEAK_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+function checkPeakOrientations(label, ringOffset, passRate) {
+  let ok = 0;
+  let total = 0;
+  for (let seed = 1; seed <= 15; seed++) {
+    const rand = seededRandom(seed * 53);
+    const armA = 35 + rand() * 15;
+    const armB = 28 + rand() * 15;
+    const apexOffset = (rand() - 0.5) * 8;
+    for (const deg of PEAK_ANGLES) {
+      for (const flip of [false, true]) {
+        total++;
+        let pts = asymmetricPeak(armA, armB, apexOffset);
+        if (flip) pts = mirrorPointsX(pts);
+        pts = rotatePoints(pts, deg).map((p) => ({
+          x: p.x + ringOffset * Math.cos((deg * Math.PI) / 180),
+          y: p.y + ringOffset * Math.sin((deg * Math.PI) / 180),
+        }));
+        pts = jitterPath(densify(pts, 3), JITTER_PX, seed * 131 + deg + (flip ? 1000 : 0));
+        if (classifyStrokeGroup([pts]) === "bend") ok++;
+      }
+    }
+  }
+  const rate = ok / total;
+  if (rate >= passRate) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`${label}: only ${ok}/${total} (${(rate * 100).toFixed(0)}%) classified as "bend"`);
+  }
+}
+// Drawn at a normal ring-relative position (matching the offset the other
+// position-sweep tests in section 1 use): every rotation, both
+// chiralities, under jitter.
+checkPeakOrientations("bare peak, any rotation/mirror, normal ring position", 150, 0.95);
+// Drawn close enough to ring center that its own arms span a wide angle
+// from the origin, the same ambiguity a genuinely small Dispersion/
+// Convergence arc has there (see the small-Diamond note below): a corner
+// and a tight curve become hard to tell apart from noise alone at this
+// scale, not a gap specific to peaks. Tracked with a low bar rather than
+// silently left unmeasured.
+checkPeakOrientations("bare peak, any rotation/mirror, drawn close to ring center (known limitation, low bar)", 39, 0.55);
+
 // ---- 6. drawing a sign larger produces a noticeably stronger reading,
 // reflected in the label text, not just the underlying number. ----
 const smallColumn = composeSpell({
