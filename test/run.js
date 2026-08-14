@@ -74,7 +74,7 @@ function corner(x0, y0, xa, ya, x1, y1) {
 }
 
 // A symmetric "^" peak of a fixed shape/size, just translated to (ox, oy)
-// (not rotated to the local radial direction) — translating only, like a
+// (not rotated to the local radial direction): translating only, like a
 // real hand-drawn sign, avoids degenerate collinear points that a
 // direction-dependent construction can produce at some ring angles.
 function peakAt(ox, oy) {
@@ -99,7 +99,7 @@ function zigzag(cx, cy, spread, steps) {
 // closed loop is a different family entirely).
 // A real back-and-forth wiggle needs multiple soft reversals to actually
 // match the README's "gentle back-and-forth" description (a single bend
-// with one direction change reads as, and should read as, Bend instead —
+// with one direction change reads as, and should read as, Bend instead,
 // verified against the shipped shape template, not just asserted here).
 function wavyWiggle(cx, cy, amp) {
   const pts = [];
@@ -113,7 +113,7 @@ function wavyWiggle(cx, cy, amp) {
 
 // A real diamond: 4 straight edges, sharp ~90 degree corners, drawn as one
 // closed stroke (not artificially rounded off to dodge the turn-count
-// check — a real diamond genuinely has corners, and the classifier needs
+// check: a real diamond genuinely has corners, and the classifier needs
 // to accept that, not just a shape gerrymandered to pass).
 function realDiamond(cx, cy, r) {
   const corners = [
@@ -203,7 +203,7 @@ check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]
 
 // A T-shape (spine + short tick) must NOT be misread as bend: the spine
 // should dominate. Drawn radially (pointing away from ring center, like a
-// real outward stroke), not tangentially across it — a stroke tangent to
+// real outward stroke), not tangentially across it: a stroke tangent to
 // the ring has both endpoints equidistant from center by construction,
 // which makes "outward vs inward" genuinely undefined regardless of how
 // good the corner detection is, not a meaningful test of either.

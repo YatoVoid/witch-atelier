@@ -359,8 +359,21 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // decorated straight line can both read as a passable "straight" shape
   // match in isolation, but only one of them actually sweeps around the
   // ring's center.
-  const allPoints = valid.flatMap((p) => p);
-  const spread = angularSpread(allPoints);
+  //
+  // Measured from the longest single stroke alone, not every stroke
+  // combined, same reasoning and same fix as direction and shape matching
+  // above: a wide sweep is described (and drawn) as one continuous arc,
+  // not a dominant arc plus a separate decoration, so there's no real
+  // multi-stroke case this loses. What it fixes is a straight line with a
+  // decoration landing at a noticeably different bearing from the ring's
+  // center than the main line, an arrowhead barb angled off to the side,
+  // a cap drawn slightly askew, which used to be able to drag the
+  // combined point cloud's angular spread over threshold even though the
+  // main line's own bearing barely varies, misreading a decorated Column
+  // as Dispersion (or Pull as Convergence) no matter how many times the
+  // shape itself got corrected: this check runs, and always ran, before
+  // the shape matcher (and its trainable templates) ever gets a look.
+  const spread = angularSpread(mainStroke);
   if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
 
   // Concatenating every stroke in drawing order (the only option before)

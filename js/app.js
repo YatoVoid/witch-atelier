@@ -37,7 +37,7 @@
   // the exact same shape, only direction tells them apart, same for
   // Dispersion/Convergence), so each gets its own explicit option rather
   // than one "Straight" button that only re-derives direction from
-  // whatever instance.inverted already was — which is exactly why a
+  // whatever instance.inverted already was. That's exactly why a
   // Column that got misread as Pull used to be uncorrectable here: the
   // shape reading was already right, only the direction was wrong, and
   // nothing let you flip just that. `inverted` gets set alongside
