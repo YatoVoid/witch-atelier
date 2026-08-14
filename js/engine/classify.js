@@ -406,8 +406,74 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // was never actually drawn. mainStroke alone doesn't have that problem,
   // so it's used whenever it already accounts for most of the ink, same
   // threshold and reasoning as the old dominance check this replaced.
-  const shapeInput = strokeLength(mainStroke) / totalStrokeLength > 0.65 ? mainStroke : valid.flat();
-  const match = matchShapeTemplate(shapeInput, extraTemplates);
+  // Concatenation itself has a failure mode dominance-gating alone
+  // doesn't cover: several genuinely equal-length strokes (a crosshair's
+  // four separate arms) where no single one dominates, so the code falls
+  // to concatenating all of them -- but real hand-drawn strokes rarely
+  // return to the exact same pixel between arms, so the "jump" from one
+  // arm's slightly-off endpoint to the next arm's slightly-off start
+  // becomes extra path the normalizer has no way to tell apart from a
+  // real corner. A crosshair with four confidently-straight arms, each
+  // individually a near-perfect match on its own, still ends up
+  // matching nothing confidently once concatenated purely from those
+  // jumps, and used to fall through to whatever the least-bad guess
+  // happened to be. Checked first: if most of the individual strokes
+  // already agree, independently, on the same shape, that's a stronger
+  // signal than however the concatenated jumble happens to score.
+  // The independent-match shortcut below only means something for
+  // strokes that actually radiate from a shared point (a crosshair's
+  // four arms): any lone straight segment trivially matches "straight"
+  // with near-zero distance, including one piece of a zigzag or a
+  // corner drawn with the pen lifted partway through, so agreement
+  // alone can't tell a genuine multi-arm sign from an ordinary shape
+  // drawn in more than one stroke. Requiring at least 3 strokes to
+  // converge on a shared endpoint (a real corner or a chain of zigzag
+  // segments only ever joins 2 at a time) is what actually distinguishes
+  // them.
+  function radiatesFromSharedHub(strokes) {
+    if (strokes.length < 3) return false;
+    const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
+    let bestHubSize = 0;
+    for (let i = 0; i < endpoints.length; i++) {
+      for (const anchor of endpoints[i]) {
+        let scale = 0;
+        for (const s of strokes) scale = Math.max(scale, strokeLength(s));
+        const radius = Math.max(15, scale * 0.3);
+        let hubSize = 0;
+        for (let j = 0; j < endpoints.length; j++) {
+          const closeEnough = endpoints[j].some((p) => Math.hypot(p.x - anchor.x, p.y - anchor.y) <= radius);
+          if (closeEnough) hubSize++;
+        }
+        bestHubSize = Math.max(bestHubSize, hubSize);
+      }
+    }
+    return bestHubSize >= 3;
+  }
+
+  let match = null;
+  if (strokeLength(mainStroke) / totalStrokeLength > 0.65) {
+    match = matchShapeTemplate(mainStroke, extraTemplates);
+  } else if (radiatesFromSharedHub(valid)) {
+    // Once the hub check above has already established this is a
+    // genuine multi-arm shape, each arm's own best match is a
+    // meaningful vote on its own, even short of the stricter single-
+    // stroke confidence bar used elsewhere: hand tremor on a ~40px arm
+    // routinely pushes its individual match distance to just past 0.06,
+    // right where the global threshold sits, without the arm's shape
+    // actually being ambiguous. Requiring that same strict bar again
+    // here, on top of the hub check, rejected real jittered arms that
+    // clearly agreed with each other.
+    const perStroke = valid.map((s) => matchShapeTemplate(s, extraTemplates));
+    const counts = {};
+    for (const m of perStroke) counts[m.label] = (counts[m.label] || 0) + 1;
+    const majorityLabel = Object.keys(counts).reduce((a, b) => (counts[b] > counts[a] ? b : a));
+    match =
+      counts[majorityLabel] / valid.length >= 0.5
+        ? perStroke.filter((m) => m.label === majorityLabel).reduce((a, b) => (b.distance < a.distance ? b : a))
+        : matchShapeTemplate(valid.flat(), extraTemplates);
+  } else {
+    match = matchShapeTemplate(valid.flat(), extraTemplates);
+  }
 
   // A confident shape match (a clean corner, a clean zigzag) is checked
   // before wide sweep, not after: a peak or a zigzag genuinely can span a

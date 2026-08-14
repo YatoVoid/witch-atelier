@@ -223,10 +223,6 @@
     }
 
     const archetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
-    // Temporary: lets a misread sign's exact raw stroke data be pulled
-    // straight from devtools instead of guessed at from a screenshot.
-    // Remove once the crosshair/bend confusion is root-caused.
-    console.log("[witch-atelier debug] drawn stroke ->", archetypeId, JSON.stringify(groupPaths));
     const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
     const start = spine[0];
     const end = spine[spine.length - 1];

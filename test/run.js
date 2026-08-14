@@ -465,6 +465,29 @@ function realSign1(ox, oy) {
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "column", 0.6);
 
+// A crosshair traced directly from a user's own drawing (pulled from the
+// devtools debug log, not synthesized): unlike realSign1 above, none of
+// its four arms share an exact common origin pixel, the same way a real
+// hand never quite returns to the same spot four times in a row. That
+// small, realistic gap between arms used to be enough on its own to
+// make this misread as "wavy": no single arm dominated 65% of the ink,
+// so all four got concatenated into one polyline, and the small "jumps"
+// between each arm's slightly-offset start point read as corners that
+// were never actually drawn, scoring worse against every template than
+// the four arms did individually. Original coordinates (ring center at
+// the origin), left untranslated since they're already centered close
+// enough to it for the test to mean the same thing.
+function realSign2() {
+  return [
+    [{ x: -10, y: -111.8 }, { x: -10, y: -107.8 }, { x: -10, y: -103.8 }, { x: -11, y: -98.8 }, { x: -11, y: -92.8 }, { x: -11, y: -87.8 }, { x: -12, y: -81.8 }, { x: -12, y: -77.8 }, { x: -12, y: -73.8 }, { x: -12, y: -69.8 }, { x: -12, y: -66.8 }, { x: -12, y: -63.8 }],
+    [{ x: -6, y: -50.8 }, { x: -4, y: -50.8 }, { x: -2, y: -50.8 }, { x: 2, y: -50.8 }, { x: 7, y: -50.8 }, { x: 12, y: -50.8 }, { x: 16, y: -50.8 }, { x: 19, y: -50.8 }, { x: 22, y: -50.8 }, { x: 28, y: -50.8 }, { x: 31, y: -50.8 }, { x: 35, y: -50.8 }, { x: 37, y: -50.8 }, { x: 39, y: -50.8 }, { x: 41, y: -50.8 }, { x: 43, y: -50.8 }],
+    [{ x: -23, y: -49.8 }, { x: -31, y: -49.8 }, { x: -36, y: -48.8 }, { x: -38, y: -48.8 }, { x: -41, y: -48.8 }, { x: -45, y: -48.8 }, { x: -49, y: -48.8 }, { x: -51, y: -48.8 }, { x: -53, y: -48.8 }, { x: -55, y: -48.8 }, { x: -57, y: -48.8 }, { x: -59, y: -48.8 }, { x: -62, y: -49.8 }, { x: -64, y: -49.8 }, { x: -66, y: -49.8 }, { x: -68, y: -49.8 }, { x: -70, y: -49.8 }],
+    [{ x: -15, y: -44.8 }, { x: -15, y: -42.8 }, { x: -15, y: -40.8 }, { x: -15, y: -37.8 }, { x: -15, y: -34.8 }, { x: -15, y: -31.8 }, { x: -15, y: -29.8 }, { x: -15, y: -25.8 }, { x: -15, y: -23.8 }, { x: -15, y: -20.8 }, { x: -15, y: -18.8 }, { x: -15, y: -16.8 }, { x: -15, y: -14.8 }, { x: -15, y: -12.8 }, { x: -15, y: -10.8 }, { x: -15, y: -8.8 }, { x: -15, y: -6.8 }],
+  ];
+}
+check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "column");
+realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "column", 0.6);
+
 // ---- 6. drawing a sign larger actually produces a noticeably stronger
 // reading, not just a quietly different number. Witch Hat Atelier's own
 // magic scales with how big a sign is drawn; a spell circle app that
