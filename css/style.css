@@ -191,6 +191,11 @@ h2:first-child {
     padding: 0.4rem 0.7rem;
   }
 
+  .correct-toggle {
+    min-height: 40px;
+    padding: 0.4rem 0;
+  }
+
   .circle-actions {
     gap: 1rem;
   }
@@ -406,11 +411,14 @@ h2:first-child {
   width: 100%;
 }
 
+.sign-entry {
+  border-bottom: 1px solid var(--line);
+  padding: 0.4rem 0;
+}
+
 .sign-row {
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--line);
   font-size: 0.85rem;
 }
 
@@ -482,13 +490,63 @@ h2:first-child {
   text-decoration: line-through;
 }
 
-.train-picker {
+.correct-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-style: italic;
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  padding: 0.2rem 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.correct-toggle:hover,
+.correct-toggle[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.correct-toggle-icon {
+  font-style: normal;
+}
+
+.correct-panel {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.correct-panel-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.correct-options {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  padding: 0.4rem 0 0.6rem;
-  margin-top: -0.4rem;
-  border-bottom: 1px solid var(--line);
+}
+
+.correct-chip {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.correct-panel-confirm {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink);
+  font-style: italic;
 }
 
 .secondary-btn:hover {

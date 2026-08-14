@@ -12,16 +12,29 @@
     groupPaths: [],
   };
 
-  // The four shape categories classify.js's point-cloud matcher
-  // recognizes (see js/data/templates.js). archetypeId is only the
-  // default for bend/bolt/wavy; "straight" resolves to column or pull
-  // depending on which way the stroke was actually drawn (see the click
-  // handler below), so its entry here is unused but kept for shape.
-  const TRAIN_CATEGORIES = [
-    { label: "straight", name: "Straight", archetypeId: "column" },
-    { label: "bend", name: "Bend", archetypeId: "bend" },
-    { label: "bolt", name: "Bolt", archetypeId: "bolt" },
-    { label: "wavy", name: "Wavy", archetypeId: "levitation" },
+  // Every family classifyStrokeGroup() can return, for the "wrong
+  // reading?" correction panel. Four (straight/bend/bolt/wavy) go through
+  // classify.js's point-cloud shape matcher (js/data/templates.js) and
+  // can be trained: picking one saves the drawn stroke as a personal
+  // example, so a similar shape reads right next time (see
+  // js/training.js). The other three (wideSweep/diamond/crush) are read
+  // straight off the ring-relative geometry (how wide an arc the stroke
+  // sweeps around the ring center, whether it closes into a loop) rather
+  // than shape-matched, so there's nothing to save an example of; picking
+  // one only corrects this sign, `trainable: false` says so in the UI
+  // rather than implying a memory that isn't there. archetypeId is only
+  // the default for bend/bolt/wavy/wideSweep/diamond/crush; "straight"
+  // resolves to column or pull depending on which way the stroke was
+  // actually drawn (see the click handler below), so its entry here is
+  // unused but kept for shape.
+  const CORRECTION_FAMILIES = [
+    { label: "straight", name: "Straight", archetypeId: "column", trainable: true },
+    { label: "wideSweep", name: "Wide Sweep", archetypeId: "dispersion", trainable: false },
+    { label: "wavy", name: "Wavy", archetypeId: "levitation", trainable: true },
+    { label: "bend", name: "Bend", archetypeId: "bend", trainable: true },
+    { label: "bolt", name: "Bolt", archetypeId: "bolt", trainable: true },
+    { label: "diamond", name: "Diamond", archetypeId: "diamond", trainable: false },
+    { label: "crush", name: "Crush", archetypeId: "crush", trainable: false },
   ];
 
   // 700ms wasn't enough room to reposition between the parts of a
@@ -222,12 +235,21 @@
     ringToggle.classList.remove("active");
     ringToggle.textContent = "Ring open";
     lastDrawnEl.textContent = "";
+    correctionPanelState.clear();
     renderSignList();
     recompute();
   });
 
   // ---- Placed signs list (fine control + accessible alternative to drawing) ----
   const signList = document.getElementById("sign-list");
+  // Correcting a reading calls renderSignList() to reflect the new
+  // archetype in the thumb/label/select, but that wipes and rebuilds
+  // every row from scratch, which would otherwise slam the just-opened
+  // correction panel shut and erase the confirmation message before
+  // either ever painted. Keyed by sign instance (not index, which shifts
+  // when a sign is removed) so the open/confirmed panel stays attached to
+  // the right sign across a re-render.
+  const correctionPanelState = new Map();
   function renderSignList() {
     signList.innerHTML = "";
     if (state.signs.length === 0) {
@@ -307,49 +329,96 @@
         recompute();
       });
 
-      // If the shape came out wrong at the family level (read as Bolt when
-      // it was clearly meant as a straight line, say), the dropdown above
-      // can't fix that, it only offers alternatives within the family
-      // classify.js already picked. This saves the drawn stroke itself as
-      // a personal correction (see js/training.js), so the same shape
-      // reads right next time, not just this once.
-      const trainBtn = document.createElement("button");
-      trainBtn.className = "mini-btn";
-      trainBtn.textContent = "fix shape";
-      trainBtn.title = "Save this stroke as an example of what it should have read as";
-      row.appendChild(trainBtn);
-
-      const picker = document.createElement("div");
-      picker.className = "train-picker";
-      picker.hidden = true;
-      TRAIN_CATEGORIES.forEach(({ label, name, archetypeId: targetId }) => {
-        const btn = document.createElement("button");
-        btn.className = "mini-btn";
-        btn.textContent = name;
-        btn.addEventListener("click", () => {
-          Training.save(instance.basePaths, label);
-          instance.archetypeId = label === "straight" ? (instance.inverted ? "pull" : "column") : targetId;
-          renderSignList();
-          recompute();
-        });
-        picker.appendChild(btn);
-      });
-      trainBtn.addEventListener("click", () => {
-        picker.hidden = !picker.hidden;
-      });
-
       const removeBtn = document.createElement("button");
       removeBtn.className = "mini-btn danger";
       removeBtn.textContent = "remove";
       removeBtn.addEventListener("click", () => {
         state.signs.splice(i, 1);
+        correctionPanelState.delete(instance);
         renderSignList();
         recompute();
       });
       row.appendChild(removeBtn);
 
-      signList.appendChild(row);
-      signList.appendChild(picker);
+      // Wrapper groups the row with its correction panel visually (a
+      // bordered card), so it's clear the panel belongs to this specific
+      // sign and not the list in general.
+      const entry = document.createElement("div");
+      entry.className = "sign-entry";
+      entry.appendChild(row);
+
+      // If the shape came out wrong at the family level (read as Bolt when
+      // it was clearly meant as a straight line, say), the dropdown above
+      // can't fix that, it only offers alternatives within the family
+      // classify.js already picked. This panel covers all 8 families, not
+      // just the 4 the shape matcher trains on: for Straight/Wavy/Bend/Bolt
+      // it saves the drawn stroke as a personal correction (see
+      // js/training.js) so the same shape reads right next time; Wide
+      // Sweep/Diamond/Crush are read from ring-relative geometry rather
+      // than shape matching, so picking one of those corrects only this
+      // sign, which the panel says outright rather than implying it's
+      // remembered when it isn't.
+      const panelState = correctionPanelState.get(instance) || { open: false, message: null };
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "correct-toggle";
+      toggleBtn.setAttribute("aria-expanded", String(panelState.open));
+      toggleBtn.innerHTML = '<span class="correct-toggle-icon" aria-hidden="true">&#9998;</span> Wrong reading?';
+      entry.appendChild(toggleBtn);
+
+      const panel = document.createElement("div");
+      panel.className = "correct-panel";
+      panel.hidden = !panelState.open;
+
+      const panelHint = document.createElement("p");
+      panelHint.className = "correct-panel-hint";
+      panelHint.textContent = "What should this sign have been read as?";
+      panel.appendChild(panelHint);
+
+      const optionRow = document.createElement("div");
+      optionRow.className = "correct-options";
+      CORRECTION_FAMILIES.forEach(({ label, name, archetypeId: targetId, trainable }) => {
+        const btn = document.createElement("button");
+        btn.className = "chip correct-chip";
+        btn.type = "button";
+        btn.textContent = trainable ? name : `${name} (this sign only)`;
+        btn.title = trainable
+          ? `Also saves this stroke so similar shapes read as ${name} from now on`
+          : `${name} is read from where the sign sits on the ring, not shape-matched, so this only fixes this one sign`;
+        btn.addEventListener("click", () => {
+          if (trainable) Training.save(instance.basePaths, label);
+          if (label === "straight") instance.archetypeId = instance.inverted ? "pull" : "column";
+          else if (label === "wideSweep") instance.archetypeId = instance.inverted ? "convergence" : "dispersion";
+          else instance.archetypeId = targetId;
+          correctionPanelState.set(instance, {
+            open: true,
+            message: trainable
+              ? `Saved. Shapes like this should read as ${name} from now on.`
+              : `Changed to ${name} for this sign. This family isn't shape-matched, so it isn't remembered for next time.`,
+          });
+          renderSignList();
+          recompute();
+        });
+        optionRow.appendChild(btn);
+      });
+      panel.appendChild(optionRow);
+
+      const panelConfirm = document.createElement("p");
+      panelConfirm.className = "correct-panel-confirm";
+      panelConfirm.hidden = !panelState.message;
+      panelConfirm.textContent = panelState.message || "";
+      panel.appendChild(panelConfirm);
+
+      toggleBtn.addEventListener("click", () => {
+        const nowOpen = panel.hidden;
+        panel.hidden = !nowOpen;
+        toggleBtn.setAttribute("aria-expanded", String(nowOpen));
+        correctionPanelState.set(instance, { open: nowOpen, message: nowOpen ? panelState.message : null });
+      });
+      entry.appendChild(panel);
+
+      signList.appendChild(entry);
     });
   }
 
