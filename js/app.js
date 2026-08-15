@@ -613,7 +613,24 @@
         CALIBRATION_PROGRESS_KEY,
         JSON.stringify({ ...resumeAt, repCount: DATASET_CALIBRATION_REPS })
       );
-      alert(`Imported ${entries.length} drawings. Build training set will resume from here.`);
+      // If calibration is already running -- started before realizing
+      // there was a file to import, or just never stopped from an
+      // earlier session -- only writing the saved resume point does
+      // nothing for it: that's read once, at startCalibration(), not
+      // watched continuously. The live session needs to jump forward
+      // itself, or it keeps right on showing wherever it already was
+      // (often Column, if it had just started fresh moments earlier),
+      // which looks exactly like the import being ignored.
+      if (calibration && calibration.mode === "draw") {
+        calibrationRepCount = DATASET_CALIBRATION_REPS;
+        calibration.familyIndex = resumeAt.familyIndex;
+        calibration.signIndex = resumeAt.signIndex;
+        calibration.rep = resumeAt.rep;
+        renderCalibrationStep();
+      }
+      const resumeSignName = CALIBRATION_FAMILIES[resumeAt.familyIndex].signs[resumeAt.signIndex].name;
+      const verb = calibration && calibration.mode === "draw" ? "Jumped to" : "Build training set will resume from";
+      alert(`Imported ${entries.length} drawings. ${verb} ${resumeSignName} (${resumeAt.rep + 1} of ${DATASET_CALIBRATION_REPS}).`);
     } else {
       clearCalibrationProgress();
       alert(`Imported ${entries.length} drawings -- every sign already has ${DATASET_CALIBRATION_REPS}+ examples.`);
