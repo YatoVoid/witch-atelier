@@ -14,10 +14,22 @@ const CalibrationDataset = {
     }
   },
 
+  // Returns true/false rather than throwing: localStorage.setItem throws
+  // when the browser's storage quota is full, which -- uncaught, as this
+  // used to be -- aborted the calibration flow silently mid-function,
+  // before the rep that was just drawn ever advanced or got a chance to
+  // be reported as unsaved. Hundreds of calibration drawings, each
+  // storing full raw (unnormalized) point data, can plausibly hit that
+  // quota; the caller needs to know it happened, not just stop responding.
   add(signId, familyKey, paths) {
     const entries = CalibrationDataset.list();
     entries.push({ signId, familyKey, paths, drawnAt: Date.now() });
-    localStorage.setItem(DATASET_KEY, JSON.stringify(entries));
+    try {
+      localStorage.setItem(DATASET_KEY, JSON.stringify(entries));
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   countBySign() {

@@ -17,13 +17,21 @@ const Training = {
   // bolt, wavy). A crosshair-style hub is saved one arm per entry instead
   // of flattened into one polyline, since concatenating arms that don't
   // share an exact pixel would read as a false corner.
+  // Returns true/false rather than throwing -- see CalibrationDataset.add's
+  // comment in js/dataset.js for why an uncaught quota error here is worse
+  // than just losing this one save.
   save(paths, label) {
     const entries = Training.list();
     const groups = paths.length >= 3 && radiatesFromSharedHub(paths) ? paths.map((p) => [p]) : [paths];
     for (const group of groups) {
       entries.push({ label, points: normalizeForMatching(group.flat()), savedAt: Date.now() });
     }
-    localStorage.setItem(TRAINING_KEY, JSON.stringify(entries));
+    try {
+      localStorage.setItem(TRAINING_KEY, JSON.stringify(entries));
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   removeAt(index) {

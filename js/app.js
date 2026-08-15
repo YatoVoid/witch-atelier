@@ -341,6 +341,31 @@
     calibrationBanner.hidden = true;
   }
 
+  // Persisted separately from the drawings themselves, so clicking Stop
+  // calibrating (or closing the tab) partway through a 24-sign, 50-rep
+  // run doesn't force starting over from Column -- everything already
+  // Kept stays saved regardless, this just remembers where to pick back
+  // up. Only cleared once every family is actually done (see
+  // advanceCalibrationFamily); stopping early leaves it in place on
+  // purpose.
+  const CALIBRATION_PROGRESS_KEY = "witch-atelier:calibration-progress";
+  function saveCalibrationProgress() {
+    localStorage.setItem(
+      CALIBRATION_PROGRESS_KEY,
+      JSON.stringify({ familyIndex: calibration.familyIndex, signIndex: calibration.signIndex, rep: calibration.rep, repCount: calibrationRepCount })
+    );
+  }
+  function loadCalibrationProgress() {
+    try {
+      return JSON.parse(localStorage.getItem(CALIBRATION_PROGRESS_KEY) || "null");
+    } catch {
+      return null;
+    }
+  }
+  function clearCalibrationProgress() {
+    localStorage.removeItem(CALIBRATION_PROGRESS_KEY);
+  }
+
   function currentCalibrationFamily() {
     return CALIBRATION_FAMILIES[calibration.familyIndex];
   }
@@ -358,6 +383,7 @@
       `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${calibrationRepCount}): trace the shape shown faintly on the circle.`;
     calibrationOverlay.src = sign.image;
     calibrationOverlay.hidden = false;
+    saveCalibrationProgress();
   }
 
   function enterCalibrationReview() {
@@ -391,6 +417,7 @@
     calibration.signIndex = 0;
     calibration.rep = 0;
     if (calibration.familyIndex >= CALIBRATION_FAMILIES.length) {
+      clearCalibrationProgress();
       stopCalibration(true);
       return;
     }
@@ -440,9 +467,13 @@
   }
 
   function startCalibration(repCount) {
-    calibrationRepCount = repCount;
     calibrationBanner.hidden = true;
-    calibration = { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
+    const saved = loadCalibrationProgress();
+    const resuming = saved && saved.familyIndex < CALIBRATION_FAMILIES.length;
+    calibrationRepCount = resuming ? saved.repCount : repCount;
+    calibration = resuming
+      ? { familyIndex: saved.familyIndex, signIndex: saved.signIndex, rep: saved.rep, mode: "draw" }
+      : { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
     renderCalibrationStep();
   }
 
@@ -452,8 +483,20 @@
   function keepCalibrationRep() {
     if (!calibration || calibration.mode !== "review") return;
     const sign = currentCalibrationSign();
-    if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
-    CalibrationDataset.add(sign.id, sign.familyKey, groupPaths);
+    const trainingOk = sign.trainLabel ? Training.save(groupPaths, sign.trainLabel) : true;
+    const datasetOk = CalibrationDataset.add(sign.id, sign.familyKey, groupPaths);
+    if (!trainingOk || !datasetOk) {
+      // Storage is full (localStorage.setItem threw -- see the comments on
+      // Training.save/CalibrationDataset.add). Everything saved before this
+      // rep is untouched and safe; this rep specifically didn't make it in.
+      // Left in review rather than advancing past it silently, with the
+      // drawn stroke still on screen, so nothing here just quietly
+      // vanishes -- the only way out is to actually go export.
+      calibrationStepText.innerHTML =
+        `<strong>Storage is full.</strong> Everything saved before this didn't go anywhere -- export it now ` +
+        `(Shape guide → Export training data), then either free up space or stop here with what you have.`;
+      return;
+    }
     updateDatasetProgress();
     groupPaths = [];
     state.groupPaths = groupPaths;
