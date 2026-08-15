@@ -156,8 +156,15 @@ h2:first-child {
   .mobile-tabs {
     display: none;
   }
+  /* Side columns were a fixed 310px each, needing ~1036px of viewport
+     before the panels + gaps + padding actually fit -- anywhere from
+     900px (this query's own breakpoint) up to that point overflowed
+     into horizontal scroll. minmax() lets both shrink together instead,
+     and identical ranges on both sides keep them shrinking by the same
+     amount, so the circle stays centered under the title rather than
+     drifting off it the way unequal columns did before. */
   .workbench {
-    grid-template-columns: 310px minmax(320px, 1fr) 310px;
+    grid-template-columns: minmax(240px, 310px) minmax(280px, 1fr) minmax(240px, 310px);
     align-items: start;
   }
   /* [hidden] only encodes the active mobile tab; desktop shows all three. */
@@ -410,17 +417,33 @@ h2:first-child {
   gap: 0.5rem;
 }
 
+/* A column, not a row: cramming the step text, Keep/Redo, and Stop
+   calibrating into one flex row never had enough width for all three at
+   any screen size (560px is this panel's max-width everywhere, not just
+   on mobile) -- Keep/Redo wrapped into their own two-row stack while Stop
+   calibrating floated at a different baseline next to it. Each row gets
+   its own line instead, sized to fit what's actually on it. */
 .calibration-step {
   width: 100%;
   max-width: 560px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.6rem;
   padding: 0.6rem 0.9rem;
   background: var(--wash-strong);
   border: 1px solid var(--ink-soft);
   border-radius: 4px;
+}
+
+.calibration-step-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.calibration-step-header #calibration-stop {
+  flex-shrink: 0;
 }
 
 .calibration-step p {

@@ -58,12 +58,14 @@
           </div>
         </div>
         <div id="calibration-step" class="calibration-step" hidden>
-          <p id="calibration-step-text"></p>
+          <div class="calibration-step-header">
+            <p id="calibration-step-text"></p>
+            <button type="button" id="calibration-stop" class="mini-btn">Stop calibrating</button>
+          </div>
           <div id="calibration-review-actions" class="calibration-review-actions" hidden>
             <button type="button" id="calibration-keep" class="secondary-btn">Keep <span class="key-hint">(Shift)</span></button>
             <button type="button" id="calibration-redo" class="mini-btn">Redo <span class="key-hint">(Esc)</span></button>
           </div>
-          <button type="button" id="calibration-stop" class="mini-btn">Stop calibrating</button>
         </div>
         <div id="calibration-default-picker" class="calibration-step" hidden>
           <p id="calibration-default-text"></p>
