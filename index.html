@@ -37,6 +37,7 @@
             <span class="collapsible-arrow" aria-hidden="true">&#9662;</span>
           </button>
           <div id="shape-guide-body">
+            <button type="button" id="recalibrate-btn" class="mini-btn">Recalibrate</button>
             <div id="sign-palette" class="shape-guide"></div>
             <p class="hint">Nothing to pick here. Draw a stroke anywhere on the circle and its shape decides what it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes. A pause of over a second lets you add more strokes to the same sign before it locks in, since most of these are drawn from a few parts, not one line.</p>
           </div>
@@ -45,7 +46,7 @@
 
       <section class="panel panel-circle" data-tab-panel="circle" aria-label="Spell circle">
         <div id="calibration-banner" class="calibration-banner" hidden>
-          <p>New here? You can teach the sign reader your handwriting before you start. Draw a few examples of each basic shape (about a minute) and it'll match your style more closely from the start, not just after you've corrected it a bunch of times.</p>
+          <p>New here? You can teach the sign reader your handwriting before you start. Draw each named sign a couple of times (a few minutes) and it'll match your style, and which sign you mean within a family, from the start -- not just after correcting it a bunch of times.</p>
           <div class="calibration-banner-actions">
             <button type="button" id="calibration-start" class="secondary-btn">Calibrate</button>
             <button type="button" id="calibration-skip" class="mini-btn">Skip, I'll just draw</button>
@@ -57,6 +58,7 @@
         </div>
         <div class="circle-frame">
           <canvas id="circle"></canvas>
+          <img id="calibration-overlay" class="calibration-overlay" alt="" hidden />
         </div>
         <div class="circle-actions">
           <button id="cast-btn" class="primary-btn">Cast</button>

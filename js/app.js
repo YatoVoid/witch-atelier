@@ -12,20 +12,19 @@
     groupPaths: [],
   };
 
-  // First-visit calibration: walks through drawing several examples of
-  // each shape the point-cloud matcher trains on (see js/training.js).
-  // Shown only if there's no saved training data and it hasn't been
-  // dismissed, so skipping it once doesn't lose the option permanently.
+  // First-visit calibration: walks through drawing examples of each named
+  // sign, not just the underlying shape categories the point-cloud matcher
+  // trains on (see js/training.js) -- shape alone can't tell same-family
+  // signs apart (Bend vs Direction, Column vs Enlarge, ...), so calibrating
+  // only the shapes left every family stuck on its one hardcoded default.
+  // Shown once on first visit if there's no saved training data and it
+  // hasn't been dismissed; also reachable any time after via the
+  // Recalibrate button in the Shape guide, since handwriting drifts and a
+  // family's preferred default is worth revisiting without re-triggering
+  // the full first-visit banner.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
-  const CALIBRATION_SHAPES = [
-    { label: "straight", name: "Straight", instructions: "Draw a straight line. Any length, any direction." },
-    { label: "wavy", name: "Wavy", instructions: "Draw a gentle back-and-forth wiggle, a couple of soft curves." },
-    { label: "bend", name: "Bend", instructions: "Draw a single sharp corner, like a peak or a checkmark." },
-    { label: "bolt", name: "Bolt", instructions: "Draw a zigzag: a few sharp turns back and forth." },
-    { label: "straight", name: "Crosshair", instructions: "Draw 4 short strokes from roughly one center: up, down, left, right." },
-  ];
-  const CALIBRATION_REPS = 5; // examples collected per shape
-  let calibration = null; // { shapeIndex, rep } while active, else null
+  const CALIBRATION_REPS = 2; // examples collected per sign
+  let calibration = null; // { signIndex, rep } while active, else null
 
   // Every sign the "wrong reading?" panel can set, built from
   // SIGN_BUCKETS rather than a separate list, so it can't drift out of
@@ -44,6 +43,23 @@
       };
     })
   );
+
+  // One calibration step per named sign (not per shape), so completing a
+  // sign's reps both feeds the shape matcher (where the family has one --
+  // wideOut/wideIn/closedSmooth/closedChaotic are read structurally, not
+  // template-matched, so trainLabel is null for those) and sets it as the
+  // family's preferred default (see PREFERRED_DEFAULT_KEY below), the same
+  // two things a correction from the "wrong reading?" panel does.
+  const CALIBRATION_SIGNS = SIGN_ARCHETYPES.map((archetype) => {
+    const familyKey = familyKeyOf(archetype.id);
+    return {
+      id: archetype.id,
+      name: archetype.name,
+      image: archetype.image,
+      familyKey,
+      trainLabel: SIGN_TRAIN_LABEL_OVERRIDE[archetype.id] || FAMILY_TRAIN_LABEL[familyKey],
+    };
+  });
 
   // Shape alone can't tell apart signs in the same family (see classify.js),
   // so correcting "Bend" to "Direction" only ever teaches the shape
@@ -206,8 +222,9 @@
     if (groupPaths.length === 0) return;
 
     if (calibration) {
-      const shape = CALIBRATION_SHAPES[calibration.shapeIndex];
-      Training.save(groupPaths, shape.label);
+      const sign = CALIBRATION_SIGNS[calibration.signIndex];
+      if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
+      setPreferredDefault(sign.familyKey, sign.id);
       groupPaths = [];
       state.groupPaths = groupPaths;
       render();
@@ -293,10 +310,11 @@
     recompute();
   });
 
-  // ---- First-visit calibration ----
+  // ---- Calibration ----
   const calibrationBanner = document.getElementById("calibration-banner");
   const calibrationStepEl = document.getElementById("calibration-step");
   const calibrationStepText = document.getElementById("calibration-step-text");
+  const calibrationOverlay = document.getElementById("calibration-overlay");
 
   function dismissOnboarding() {
     localStorage.setItem(ONBOARDING_KEY, "true");
@@ -304,18 +322,20 @@
   }
 
   function renderCalibrationStep() {
-    const shape = CALIBRATION_SHAPES[calibration.shapeIndex];
+    const sign = CALIBRATION_SIGNS[calibration.signIndex];
     calibrationStepText.innerHTML =
-      `<strong>${shape.name}</strong> (${calibration.rep + 1} of ${CALIBRATION_REPS}): ${shape.instructions}`;
+      `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${CALIBRATION_REPS}): trace the shape shown faintly on the circle.`;
+    calibrationOverlay.src = sign.image;
+    calibrationOverlay.hidden = false;
   }
 
   function advanceCalibration() {
     calibration.rep++;
     if (calibration.rep >= CALIBRATION_REPS) {
       calibration.rep = 0;
-      calibration.shapeIndex++;
+      calibration.signIndex++;
     }
-    if (calibration.shapeIndex >= CALIBRATION_SHAPES.length) {
+    if (calibration.signIndex >= CALIBRATION_SIGNS.length) {
       stopCalibration(true);
       return;
     }
@@ -325,21 +345,30 @@
   function stopCalibration(completed) {
     calibration = null;
     calibrationStepEl.hidden = true;
+    calibrationOverlay.hidden = true;
     dismissOnboarding();
     lastDrawnEl.textContent = completed
       ? "Calibration saved. Draw normally now, it'll use these examples alongside the built-in ones."
       : "";
   }
 
-  document.getElementById("calibration-start").addEventListener("click", () => {
+  function startCalibration() {
     calibrationBanner.hidden = true;
-    calibration = { shapeIndex: 0, rep: 0 };
+    calibration = { signIndex: 0, rep: 0 };
     calibrationStepEl.hidden = false;
     renderCalibrationStep();
-  });
+  }
 
+  document.getElementById("calibration-start").addEventListener("click", startCalibration);
   document.getElementById("calibration-skip").addEventListener("click", dismissOnboarding);
   document.getElementById("calibration-stop").addEventListener("click", () => stopCalibration(false));
+  // Always reachable, not just on first visit: handwriting drifts, and
+  // revisiting which sign should default for a family (Bend vs Direction,
+  // ...) is a normal thing to want later, not just once at onboarding.
+  // Tucked into the already-collapsed Shape guide section rather than a
+  // banner, so it's available without sitting in front of the user
+  // every time they open the app.
+  document.getElementById("recalibrate-btn").addEventListener("click", startCalibration);
 
   if (!localStorage.getItem(ONBOARDING_KEY) && Training.list().length === 0) {
     calibrationBanner.hidden = false;
