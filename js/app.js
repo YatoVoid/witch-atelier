@@ -347,21 +347,38 @@
   // else ever changes the underlying data without also updating it in
   // lockstep, and importing a file (possibly one merging data from a
   // completely different session) is exactly the kind of change that
-  // pointer had no way to know about. Deriving it from
-  // CalibrationDataset.countBySign() instead means there's only one
-  // source of truth: however the drawings actually got here (drawn in
-  // this session, imported, both), the first sign short of targetRepCount
-  // examples is unambiguous.
+  // pointer had no way to know about.
+  //
+  // Resume trusts forward progress at the FAMILY level rather than
+  // stopping at the first individual sign short of the target: an
+  // imported file built after a storage reset mid-session can genuinely
+  // have zero examples of an earlier family (Column, say) while still
+  // having plenty of a much later one (Bolt) -- that's not evidence
+  // Column needs redoing, it's evidence of exactly when the reset
+  // happened, since the app's own flow never reaches a later family
+  // without going through every earlier family's default-picker first.
+  // Whichever family the drawings reach furthest into is trusted as the
+  // real starting point; every family before it is treated as already
+  // done regardless of what any one file happens to contain for it.
+  // Signs WITHIN that furthest family are still checked properly from
+  // its own start, since drawing can genuinely leave one of its earlier
+  // signs (Rain, say) short while a later one in the same family (Weave)
+  // is already at target.
   function computeCalibrationResumePoint(targetRepCount) {
     const counts = CalibrationDataset.countBySign();
+    let furthestFamilyIndex = 0;
     for (let familyIndex = 0; familyIndex < CALIBRATION_FAMILIES.length; familyIndex++) {
+      const hasAnyData = CALIBRATION_FAMILIES[familyIndex].signs.some((sign) => (counts[sign.id] || 0) > 0);
+      if (hasAnyData) furthestFamilyIndex = familyIndex;
+    }
+    for (let familyIndex = furthestFamilyIndex; familyIndex < CALIBRATION_FAMILIES.length; familyIndex++) {
       const family = CALIBRATION_FAMILIES[familyIndex];
       for (let signIndex = 0; signIndex < family.signs.length; signIndex++) {
         const rep = counts[family.signs[signIndex].id] || 0;
         if (rep < targetRepCount) return { familyIndex, signIndex, rep };
       }
     }
-    return null; // every sign already has targetRepCount+ examples
+    return null; // every sign from the furthest family onward already has targetRepCount+ examples
   }
 
   function currentCalibrationFamily() {
