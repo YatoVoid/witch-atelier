@@ -341,29 +341,27 @@
     calibrationBanner.hidden = true;
   }
 
-  // Persisted separately from the drawings themselves, so clicking Stop
-  // calibrating (or closing the tab) partway through a 24-sign, 50-rep
-  // run doesn't force starting over from Column -- everything already
-  // Kept stays saved regardless, this just remembers where to pick back
-  // up. Only cleared once every family is actually done (see
-  // advanceCalibrationFamily); stopping early leaves it in place on
-  // purpose.
-  const CALIBRATION_PROGRESS_KEY = "witch-atelier:calibration-progress";
-  function saveCalibrationProgress() {
-    localStorage.setItem(
-      CALIBRATION_PROGRESS_KEY,
-      JSON.stringify({ familyIndex: calibration.familyIndex, signIndex: calibration.signIndex, rep: calibration.rep, repCount: calibrationRepCount })
-    );
-  }
-  function loadCalibrationProgress() {
-    try {
-      return JSON.parse(localStorage.getItem(CALIBRATION_PROGRESS_KEY) || "null");
-    } catch {
-      return null;
+  // Where to resume is computed fresh from the drawings themselves every
+  // time, not tracked as a separate pointer -- a separate "familyIndex/
+  // signIndex/rep so far" value only stays correct as long as nothing
+  // else ever changes the underlying data without also updating it in
+  // lockstep, and importing a file (possibly one merging data from a
+  // completely different session) is exactly the kind of change that
+  // pointer had no way to know about. Deriving it from
+  // CalibrationDataset.countBySign() instead means there's only one
+  // source of truth: however the drawings actually got here (drawn in
+  // this session, imported, both), the first sign short of targetRepCount
+  // examples is unambiguous.
+  function computeCalibrationResumePoint(targetRepCount) {
+    const counts = CalibrationDataset.countBySign();
+    for (let familyIndex = 0; familyIndex < CALIBRATION_FAMILIES.length; familyIndex++) {
+      const family = CALIBRATION_FAMILIES[familyIndex];
+      for (let signIndex = 0; signIndex < family.signs.length; signIndex++) {
+        const rep = counts[family.signs[signIndex].id] || 0;
+        if (rep < targetRepCount) return { familyIndex, signIndex, rep };
+      }
     }
-  }
-  function clearCalibrationProgress() {
-    localStorage.removeItem(CALIBRATION_PROGRESS_KEY);
+    return null; // every sign already has targetRepCount+ examples
   }
 
   function currentCalibrationFamily() {
@@ -383,7 +381,6 @@
       `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${calibrationRepCount}): trace the shape shown faintly on the circle.`;
     calibrationOverlay.src = sign.image;
     calibrationOverlay.hidden = false;
-    saveCalibrationProgress();
   }
 
   function enterCalibrationReview() {
@@ -417,7 +414,6 @@
     calibration.signIndex = 0;
     calibration.rep = 0;
     if (calibration.familyIndex >= CALIBRATION_FAMILIES.length) {
-      clearCalibrationProgress();
       stopCalibration(true);
       return;
     }
@@ -468,13 +464,19 @@
 
   function startCalibration(repCount) {
     calibrationBanner.hidden = true;
-    const saved = loadCalibrationProgress();
-    const resuming = saved && saved.familyIndex < CALIBRATION_FAMILIES.length;
-    calibrationRepCount = resuming ? saved.repCount : repCount;
-    calibration = resuming
-      ? { familyIndex: saved.familyIndex, signIndex: saved.signIndex, rep: saved.rep, mode: "draw" }
+    calibrationRepCount = repCount;
+    const resumeAt = computeCalibrationResumePoint(repCount);
+    calibration = resumeAt
+      ? { familyIndex: resumeAt.familyIndex, signIndex: resumeAt.signIndex, rep: resumeAt.rep, mode: "draw" }
       : { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
     renderCalibrationStep();
+    // The Circle tab is where the actual drawing step lives; on mobile
+    // (where these are real tabs, not just a desktop 3-column layout)
+    // tapping Build training set otherwise leaves the step sitting
+    // unseen behind the Sigils & Signs tab the button itself is on,
+    // easy to mistake for nothing having happened. Harmless to call on
+    // desktop too -- every panel is already visible there regardless.
+    document.querySelector('[data-tab-target="circle"]')?.click();
   }
 
   document.getElementById("calibration-start").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
@@ -596,43 +598,26 @@
     }
     updateDatasetProgress();
 
-    const counts = CalibrationDataset.countBySign();
-    let resumeAt = null;
-    outer: for (let familyIndex = 0; familyIndex < CALIBRATION_FAMILIES.length; familyIndex++) {
-      const family = CALIBRATION_FAMILIES[familyIndex];
-      for (let signIndex = 0; signIndex < family.signs.length; signIndex++) {
-        const rep = counts[family.signs[signIndex].id] || 0;
-        if (rep < DATASET_CALIBRATION_REPS) {
-          resumeAt = { familyIndex, signIndex, rep };
-          break outer;
-        }
-      }
+    // Resume is always derived fresh from CalibrationDataset (see
+    // computeCalibrationResumePoint), so importing more drawings into it
+    // is automatically reflected the next time calibration starts --
+    // nothing extra to write here. A live, already-running session is
+    // the one exception: it was handed its position at start time and
+    // won't re-check on its own, so it needs to be told directly or it
+    // just keeps showing wherever it already was.
+    const resumeAt = computeCalibrationResumePoint(DATASET_CALIBRATION_REPS);
+    if (calibration && calibration.mode === "draw" && resumeAt) {
+      calibrationRepCount = DATASET_CALIBRATION_REPS;
+      calibration.familyIndex = resumeAt.familyIndex;
+      calibration.signIndex = resumeAt.signIndex;
+      calibration.rep = resumeAt.rep;
+      renderCalibrationStep();
     }
     if (resumeAt) {
-      localStorage.setItem(
-        CALIBRATION_PROGRESS_KEY,
-        JSON.stringify({ ...resumeAt, repCount: DATASET_CALIBRATION_REPS })
-      );
-      // If calibration is already running -- started before realizing
-      // there was a file to import, or just never stopped from an
-      // earlier session -- only writing the saved resume point does
-      // nothing for it: that's read once, at startCalibration(), not
-      // watched continuously. The live session needs to jump forward
-      // itself, or it keeps right on showing wherever it already was
-      // (often Column, if it had just started fresh moments earlier),
-      // which looks exactly like the import being ignored.
-      if (calibration && calibration.mode === "draw") {
-        calibrationRepCount = DATASET_CALIBRATION_REPS;
-        calibration.familyIndex = resumeAt.familyIndex;
-        calibration.signIndex = resumeAt.signIndex;
-        calibration.rep = resumeAt.rep;
-        renderCalibrationStep();
-      }
       const resumeSignName = CALIBRATION_FAMILIES[resumeAt.familyIndex].signs[resumeAt.signIndex].name;
       const verb = calibration && calibration.mode === "draw" ? "Jumped to" : "Build training set will resume from";
       alert(`Imported ${entries.length} drawings. ${verb} ${resumeSignName} (${resumeAt.rep + 1} of ${DATASET_CALIBRATION_REPS}).`);
     } else {
-      clearCalibrationProgress();
       alert(`Imported ${entries.length} drawings -- every sign already has ${DATASET_CALIBRATION_REPS}+ examples.`);
     }
   });
