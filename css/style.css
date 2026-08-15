@@ -439,6 +439,11 @@ h2:first-child {
   flex-wrap: wrap;
 }
 
+.key-hint {
+  opacity: 0.65;
+  font-size: 0.85em;
+}
+
 #calibration-default-options {
   margin-top: 0.5rem;
 }

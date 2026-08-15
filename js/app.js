@@ -449,7 +449,7 @@
   document.getElementById("calibration-start").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
   document.getElementById("calibration-skip").addEventListener("click", dismissOnboarding);
   document.getElementById("calibration-stop").addEventListener("click", () => stopCalibration(false));
-  document.getElementById("calibration-keep").addEventListener("click", () => {
+  function keepCalibrationRep() {
     if (!calibration || calibration.mode !== "review") return;
     const sign = currentCalibrationSign();
     if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
@@ -459,13 +459,31 @@
     state.groupPaths = groupPaths;
     render();
     advanceCalibration();
-  });
-  document.getElementById("calibration-redo").addEventListener("click", () => {
+  }
+  function redoCalibrationRep() {
     if (!calibration || calibration.mode !== "review") return;
     groupPaths = [];
     state.groupPaths = groupPaths;
     render();
     renderCalibrationStep(); // same sign, same rep count -- just try again
+  }
+  document.getElementById("calibration-keep").addEventListener("click", keepCalibrationRep);
+  document.getElementById("calibration-redo").addEventListener("click", redoCalibrationRep);
+  // Building a real training set means hundreds of Keep clicks in a row --
+  // reaching for the mouse every time is exactly the friction that makes
+  // 50-per-sign painful. Shift keeps (one hand stays on the drawing hand's
+  // side of the keyboard); Escape redoes, the same "back out of this"
+  // meaning it has everywhere else. Only live during the review step, so
+  // neither key does anything while actually drawing or elsewhere in the app.
+  document.addEventListener("keydown", (e) => {
+    if (!calibration || calibration.mode !== "review" || e.repeat) return;
+    if (e.key === "Shift") {
+      e.preventDefault();
+      keepCalibrationRep();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      redoCalibrationRep();
+    }
   });
   // Always reachable, not just on first visit: handwriting drifts, and
   // revisiting which sign should default for a family (Bend vs Direction,
