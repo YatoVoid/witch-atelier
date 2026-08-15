@@ -45,6 +45,30 @@
     })
   );
 
+  // Shape alone can't tell apart signs in the same family (see classify.js),
+  // so correcting "Bend" to "Direction" only ever teaches the shape
+  // matcher what a bend/direction/bolt/bird-shaped stroke looks like --
+  // classifyStrokeGroup() always returns the family's one hardcoded
+  // default archetype, "bend", regardless of how much training data piles
+  // up for it, so a correction to a non-default family member (Direction,
+  // Enlarge, Bird, Float, ...) could never actually change what showed up
+  // next time, no matter how many times it was repeated. This remembers a
+  // preferred default per family separately from shape training, and
+  // finalizeGroup() below applies it after classification.
+  const PREFERRED_DEFAULT_KEY = "witch-atelier:preferred-defaults";
+  function getPreferredDefaults() {
+    try {
+      return JSON.parse(localStorage.getItem(PREFERRED_DEFAULT_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+  function setPreferredDefault(familyKey, archetypeId) {
+    const prefs = getPreferredDefaults();
+    prefs[familyKey] = archetypeId;
+    localStorage.setItem(PREFERRED_DEFAULT_KEY, JSON.stringify(prefs));
+  }
+
   const GROUP_WINDOW_MS = 1400; // pause this long to lock in a multi-part sign
 
   let drawing = false;
@@ -191,7 +215,17 @@
       return;
     }
 
-    const archetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
+    const detectedArchetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
+    // Swap in a preferred default for this family if one's been taught,
+    // e.g. Direction instead of Bend -- see PREFERRED_DEFAULT_KEY above.
+    // bucketCandidates() re-derives the same family the detected id is
+    // already in, so this can only ever substitute within it, never
+    // change what family (and therefore what effect) the sign resolves to.
+    const preferredDefaults = getPreferredDefaults();
+    const family = familyKeyOf(detectedArchetypeId);
+    const preferred = family && preferredDefaults[family];
+    const archetypeId =
+      preferred && bucketCandidates(detectedArchetypeId).includes(preferred) ? preferred : detectedArchetypeId;
     const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
     const start = spine[0];
     const end = spine[spine.length - 1];
@@ -441,7 +475,10 @@
           ? `Also saves this stroke so similar shapes read as ${name} from now on`
           : `${name} is read from where the sign sits on the ring, not shape-matched, so this only fixes this one sign`;
         btn.addEventListener("click", () => {
-          if (trainable) Training.save(instance.basePaths, trainLabel);
+          if (trainable) {
+            Training.save(instance.basePaths, trainLabel);
+            setPreferredDefault(familyKeyOf(targetId), targetId);
+          }
           instance.archetypeId = targetId;
           if (inverted !== undefined) instance.inverted = inverted;
           refreshLastDrawnIfCurrent(instance);
