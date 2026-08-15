@@ -23,7 +23,9 @@
   // family's preferred default is worth revisiting without re-triggering
   // the full first-visit banner.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
-  const CALIBRATION_REPS = 2; // examples collected per sign
+  const QUICK_CALIBRATION_REPS = 2;
+  const DATASET_CALIBRATION_REPS = 50; // building an offline-training export, not just live matching
+  let calibrationRepCount = QUICK_CALIBRATION_REPS;
   let calibration = null; // { signIndex, rep } while active, else null
 
   // Every sign the "wrong reading?" panel can set, built from
@@ -353,7 +355,7 @@
     calibrationReviewActions.hidden = true;
     const sign = currentCalibrationSign();
     calibrationStepText.innerHTML =
-      `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${CALIBRATION_REPS}): trace the shape shown faintly on the circle.`;
+      `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${calibrationRepCount}): trace the shape shown faintly on the circle.`;
     calibrationOverlay.src = sign.image;
     calibrationOverlay.hidden = false;
   }
@@ -367,7 +369,7 @@
 
   function advanceCalibration() {
     calibration.rep++;
-    if (calibration.rep >= CALIBRATION_REPS) {
+    if (calibration.rep >= calibrationRepCount) {
       calibration.rep = 0;
       calibration.signIndex++;
     }
@@ -437,19 +439,22 @@
       : "";
   }
 
-  function startCalibration() {
+  function startCalibration(repCount) {
+    calibrationRepCount = repCount;
     calibrationBanner.hidden = true;
     calibration = { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
     renderCalibrationStep();
   }
 
-  document.getElementById("calibration-start").addEventListener("click", startCalibration);
+  document.getElementById("calibration-start").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
   document.getElementById("calibration-skip").addEventListener("click", dismissOnboarding);
   document.getElementById("calibration-stop").addEventListener("click", () => stopCalibration(false));
   document.getElementById("calibration-keep").addEventListener("click", () => {
     if (!calibration || calibration.mode !== "review") return;
     const sign = currentCalibrationSign();
     if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
+    CalibrationDataset.add(sign.id, sign.familyKey, groupPaths);
+    updateDatasetProgress();
     groupPaths = [];
     state.groupPaths = groupPaths;
     render();
@@ -468,7 +473,31 @@
   // Tucked into the already-collapsed Shape guide section rather than a
   // banner, so it's available without sitting in front of the user
   // every time they open the app.
-  document.getElementById("recalibrate-btn").addEventListener("click", startCalibration);
+  document.getElementById("recalibrate-btn").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
+  // 50 reps per sign instead of 2: not for the live matcher (which only
+  // ever needed a few examples to nudge its templates), but to build up a
+  // real per-sign-labeled dataset (see js/dataset.js) worth exporting for
+  // offline model training. Same review/redo/default-picker flow either
+  // way, just a lot more of it.
+  document.getElementById("build-dataset-btn").addEventListener("click", () => startCalibration(DATASET_CALIBRATION_REPS));
+
+  const datasetProgressEl = document.getElementById("dataset-progress");
+  const exportDatasetBtn = document.getElementById("export-dataset-btn");
+  function updateDatasetProgress() {
+    const total = CalibrationDataset.list().length;
+    if (total === 0) {
+      datasetProgressEl.hidden = true;
+      exportDatasetBtn.hidden = true;
+      return;
+    }
+    const bySign = CalibrationDataset.countBySign();
+    const signsCovered = Object.keys(bySign).length;
+    datasetProgressEl.hidden = false;
+    datasetProgressEl.textContent = `Training set: ${total} drawings across ${signsCovered} of ${SIGN_ARCHETYPES.length} signs.`;
+    exportDatasetBtn.hidden = false;
+  }
+  exportDatasetBtn.addEventListener("click", () => CalibrationDataset.download());
+  updateDatasetProgress();
 
   if (!localStorage.getItem(ONBOARDING_KEY) && Training.list().length === 0) {
     calibrationBanner.hidden = false;

@@ -275,7 +275,18 @@ h2:first-child {
   margin: 0.25rem 0 0;
 }
 
-#recalibrate-btn {
+.calibration-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+#dataset-progress {
+  margin-bottom: 0.6rem;
+}
+
+#export-dataset-btn {
   display: block;
   margin-bottom: 0.6rem;
 }
