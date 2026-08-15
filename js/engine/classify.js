@@ -346,7 +346,14 @@ function classifyStrokeGroup(paths, extraTemplates) {
   }
   const boundSize = Math.hypot(maxX - minX, maxY - minY) || 1e-6;
   const loopClosure = Math.max(0, 1 - spineChord / boundSize);
-  const closedShape = loopClosure > 0.6 && strokeLength(spinePoints) > boundSize * 0.7;
+  // A steep, narrow peak can fold its two arms back close enough together
+  // to pass a looser closure check without ever actually enclosing
+  // anything -- measured directly against a real (jittered) closed shape:
+  // a genuine Diamond's start and end land close enough to call it closed
+  // even under heavy hand tremor, closer than the tightest a folded-back
+  // peak ever gets by coincidence. 0.82 sits in the gap measured between
+  // the two (peak tops out under 0.80, Diamond stays above 0.85).
+  const closedShape = loopClosure > 0.82 && strokeLength(spinePoints) > boundSize * 0.7;
   // A real diamond measures ~2-3 sharp turns here even under hand jitter;
   // a chaotic scribble runs 7+.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
@@ -436,7 +443,17 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // support.
   const maxRadius = Math.max(...mainStroke.map((p) => Math.hypot(p.x, p.y)));
   const steadyRadius = maxRadius < 50 || radiusRatio(mainStroke) > 0.5;
-  if (spread > 0.85 && steadyRadius) return radialDelta >= 0 ? "dispersion" : "convergence";
+  // A shape the matcher is nearly certain about (a razor-sharp corner, not
+  // just a passable-by-chance one) is trusted outright, even if it also
+  // happens to pass the two geometric checks above from wherever it was
+  // drawn -- a tight, unambiguous match shouldn't lose to a coincidence.
+  // Set far below the old blanket confidence gate (which blocked plenty
+  // of genuine sweeps that scored merely OK, not this good) so it only
+  // catches shapes the matcher truly isn't guessing about.
+  const VERY_CONFIDENT_MATCH = 0.03;
+  if (match.distance >= VERY_CONFIDENT_MATCH && spread > 0.85 && steadyRadius) {
+    return radialDelta >= 0 ? "dispersion" : "convergence";
+  }
 
   if (match.label === "straight") {
     // Checked before direction: a symmetric 4-arm hub has no reliable

@@ -89,6 +89,14 @@ const SHAPE_TEMPLATES = {
     [
       { x: -40, y: 36 }, { x: -16, y: 12 }, { x: 0, y: -40 }, { x: 11.2, y: -8.4 }, { x: 28, y: 23.8 },
     ],
+    // Same idea at a much more extreme arm-length ratio (roughly 2:1) and
+    // with rounded, curved arms rather than straight segments -- a real
+    // hand rarely draws a peak's corner razor-sharp either.
+    [
+      { x: -100, y: 60 }, { x: -84.8, y: 32.1 }, { x: -71.2, y: 7.2 }, { x: -59.2, y: -14.8 }, { x: -48.8, y: -33.9 },
+      { x: -40, y: -50 }, { x: -35.7, y: -44.1 }, { x: -29, y: -34.9 }, { x: -21.3, y: -24.3 }, { x: -12.5, y: -12.2 },
+      { x: -2.6, y: 1.4 },
+    ],
   ],
   bolt: [
     // Clean multi-turn zigzag, kept alongside the real glyph below for

@@ -510,6 +510,52 @@ checkPeakOrientations("bare peak, any rotation/mirror, normal ring position", 15
 // silently left unmeasured.
 checkPeakOrientations("bare peak, any rotation/mirror, drawn close to ring center (known limitation, low bar)", 39, 0.55);
 
+// A steep, narrow peak (its two arms folding back close enough together
+// to nearly meet near its own base) used to satisfy the closed-shape
+// check meant for Diamond/Crush, without ever actually enclosing
+// anything -- misread as Diamond. Built with a real curve (quadratic,
+// not straight segments) since a rounded corner is how a hand actually
+// draws a sharp turn, and that curvature is what pushed loopClosure over
+// the old, looser threshold.
+function quadTo(a, b, c, n, out) {
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push({
+      x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * b.x + t * t * c.x,
+      y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * b.y + t * t * c.y,
+    });
+  }
+}
+function curvedPeak(x0, y0, xTip, yTip, x1, y1) {
+  const pts = [];
+  quadTo({ x: x0, y: y0 }, { x: (x0 + xTip * 2) / 3, y: (y0 + yTip * 2) / 3 }, { x: xTip, y: yTip }, 20, pts);
+  quadTo({ x: xTip, y: yTip }, { x: (xTip * 2 + x1) / 3, y: (yTip * 2 + y1) / 3 }, { x: x1, y: y1 }, 20, pts);
+  return pts;
+}
+checkJitterRobust(
+  "steep narrow peak is not mistaken for a closed shape",
+  () => curvedPeak(-20, 60, 0, -90, 25, 55),
+  "bend",
+  0.95
+);
+
+// A shape the matcher is very sure about (here, a razor-sharp corner,
+// point-cloud distance to "bend" under 0.02) has to stay Bend even when
+// drawn at a position where its endpoints happen to sit at a similar
+// distance from ring center and span a wide angle from there -- the same
+// coincidence a genuine wide sweep produces. Regression test for a
+// mirror-matching side effect: removing the old confidence gate entirely
+// (to let genuine sweeps that scored a mediocre match get reconsidered,
+// see the wideOut/wideIn tests above) briefly let this get misread as
+// Dispersion too.
+check(
+  "a confidently-matched sharp corner is not mistaken for a sweep",
+  classifyStrokeGroup([[
+    { x: -60, y: 50 }, { x: -5, y: -70 }, { x: 55, y: 55 },
+  ]]),
+  "bend"
+);
+
 // ---- 6. drawing a sign larger produces a noticeably stronger reading,
 // reflected in the label text, not just the underlying number. ----
 const smallColumn = composeSpell({
