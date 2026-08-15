@@ -24,7 +24,7 @@
   // the full first-visit banner.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
   const QUICK_CALIBRATION_REPS = 2;
-  const DATASET_CALIBRATION_REPS = 50; // building an offline-training export, not just live matching
+  const DATASET_CALIBRATION_REPS = 25; // building an offline-training export, not just live matching
   let calibrationRepCount = QUICK_CALIBRATION_REPS;
   let calibration = null; // { signIndex, rep } while active, else null
 
@@ -558,6 +558,68 @@
     exportDatasetBtn.hidden = false;
   }
   exportDatasetBtn.addEventListener("click", () => CalibrationDataset.download());
+
+  // Restores an exported file after a reset (clearing site data, or just
+  // moving to a different browser) wipes localStorage -- and with it,
+  // every drawing and the progress pointer that told Build training set
+  // where to resume. Re-derives both from the imported drawings: the raw
+  // strokes go back into CalibrationDataset, any sign with a trainLabel
+  // also re-feeds the live $1 recognizer the same way drawing it fresh
+  // would, and the resume pointer is recomputed from the merged per-sign
+  // counts rather than trusted from the (now also-gone) saved pointer.
+  const importDatasetBtn = document.getElementById("import-dataset-btn");
+  const importDatasetInput = document.getElementById("import-dataset-input");
+  importDatasetBtn.addEventListener("click", () => importDatasetInput.click());
+  importDatasetInput.addEventListener("change", async () => {
+    const file = importDatasetInput.files[0];
+    importDatasetInput.value = "";
+    if (!file) return;
+    let payload;
+    try {
+      payload = JSON.parse(await file.text());
+    } catch {
+      alert("Couldn't read that file -- is it an exported training-data JSON?");
+      return;
+    }
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    if (entries.length === 0) {
+      alert("That file doesn't have any drawings in it.");
+      return;
+    }
+    if (!CalibrationDataset.addAll(entries)) {
+      alert("Storage is full -- couldn't import. Free up space (or clear old data) and try again.");
+      return;
+    }
+    for (const entry of entries) {
+      const trainLabel = SIGN_TRAIN_LABEL_OVERRIDE[entry.signId] || FAMILY_TRAIN_LABEL[entry.familyKey];
+      if (trainLabel) Training.save(entry.paths, trainLabel);
+    }
+    updateDatasetProgress();
+
+    const counts = CalibrationDataset.countBySign();
+    let resumeAt = null;
+    outer: for (let familyIndex = 0; familyIndex < CALIBRATION_FAMILIES.length; familyIndex++) {
+      const family = CALIBRATION_FAMILIES[familyIndex];
+      for (let signIndex = 0; signIndex < family.signs.length; signIndex++) {
+        const rep = counts[family.signs[signIndex].id] || 0;
+        if (rep < DATASET_CALIBRATION_REPS) {
+          resumeAt = { familyIndex, signIndex, rep };
+          break outer;
+        }
+      }
+    }
+    if (resumeAt) {
+      localStorage.setItem(
+        CALIBRATION_PROGRESS_KEY,
+        JSON.stringify({ ...resumeAt, repCount: DATASET_CALIBRATION_REPS })
+      );
+      alert(`Imported ${entries.length} drawings. Build training set will resume from here.`);
+    } else {
+      clearCalibrationProgress();
+      alert(`Imported ${entries.length} drawings -- every sign already has ${DATASET_CALIBRATION_REPS}+ examples.`);
+    }
+  });
+
   updateDatasetProgress();
 
   if (!localStorage.getItem(ONBOARDING_KEY) && Training.list().length === 0) {
