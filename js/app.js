@@ -44,22 +44,31 @@
     })
   );
 
-  // One calibration step per named sign (not per shape), so completing a
-  // sign's reps both feeds the shape matcher (where the family has one --
+  // One calibration step per named sign (not per shape), grouped by
+  // family (SIGN_BUCKETS order, not SIGN_ARCHETYPES' order -- the two
+  // don't match, and stepping through Direction long before Bend and Bird
+  // meant whichever of the three happened to be calibrated last quietly
+  // became the family's default, discarding whatever the first two had
+  // just set without any indication that's what was happening). Completing
+  // a sign's reps feeds the shape matcher (where the family has one --
   // wideOut/wideIn/closedSmooth/closedChaotic are read structurally, not
-  // template-matched, so trainLabel is null for those) and sets it as the
-  // family's preferred default (see PREFERRED_DEFAULT_KEY below), the same
-  // two things a correction from the "wrong reading?" panel does.
-  const CALIBRATION_SIGNS = SIGN_ARCHETYPES.map((archetype) => {
-    const familyKey = familyKeyOf(archetype.id);
-    return {
-      id: archetype.id,
-      name: archetype.name,
-      image: archetype.image,
-      familyKey,
-      trainLabel: SIGN_TRAIN_LABEL_OVERRIDE[archetype.id] || FAMILY_TRAIN_LABEL[familyKey],
-    };
-  });
+  // template-matched, so trainLabel is null for those); which one becomes
+  // the family's preferred default (see PREFERRED_DEFAULT_KEY below) is
+  // asked explicitly once the whole family's signs are calibrated, not
+  // inferred from whichever was drawn last.
+  const CALIBRATION_FAMILIES = Object.keys(SIGN_BUCKETS).map((familyKey) => ({
+    familyKey,
+    signs: SIGN_BUCKETS[familyKey].map((id) => {
+      const archetype = getArchetype(id);
+      return {
+        id,
+        name: archetype.name,
+        image: archetype.image,
+        familyKey,
+        trainLabel: SIGN_TRAIN_LABEL_OVERRIDE[id] || FAMILY_TRAIN_LABEL[familyKey],
+      };
+    }),
+  }));
 
   // Shape alone can't tell apart signs in the same family (see classify.js),
   // so correcting "Bend" to "Direction" only ever teaches the shape
@@ -185,6 +194,9 @@
   // pause during which another stroke counts as part of the same sign.
   // Once that pause elapses, the group classifies and locks in (classify.js).
   canvas.addEventListener("pointerdown", (e) => {
+    // Awaiting Keep/Redo, or picking a family's default: the pending
+    // stroke isn't resolved yet, so a new one can't start on top of it.
+    if (calibration && calibration.mode !== "draw") return;
     if (groupTimer) {
       clearTimeout(groupTimer);
       groupTimer = null;
@@ -222,13 +234,13 @@
     if (groupPaths.length === 0) return;
 
     if (calibration) {
-      const sign = CALIBRATION_SIGNS[calibration.signIndex];
-      if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
-      setPreferredDefault(sign.familyKey, sign.id);
-      groupPaths = [];
-      state.groupPaths = groupPaths;
+      // Doesn't save or advance yet -- groupPaths is left as-is (still
+      // rendered, semi-transparent, by drawScene) so the drawn stroke
+      // stays visible while Keep/Redo decides whether it was any good.
+      // A bad rep committed straight to training data with no way back
+      // was actively teaching the matcher the wrong thing.
+      enterCalibrationReview();
       render();
-      advanceCalibration();
       return;
     }
 
@@ -278,7 +290,9 @@
     if (rawPoints.length >= 2 && pathLength(rawPoints) >= 8) {
       groupPaths.push(rawPoints.slice());
       state.groupPaths = groupPaths;
-      lastDrawnEl.textContent = "Drawing... (pause to lock in)";
+      // Calibration's own step text already says what's happening; this
+      // status line is for normal drawing, sitting right below it.
+      if (!calibration) lastDrawnEl.textContent = "Drawing... (pause to lock in)";
     }
     rawPoints = [];
     render();
@@ -315,18 +329,40 @@
   const calibrationStepEl = document.getElementById("calibration-step");
   const calibrationStepText = document.getElementById("calibration-step-text");
   const calibrationOverlay = document.getElementById("calibration-overlay");
+  const calibrationReviewActions = document.getElementById("calibration-review-actions");
+  const calibrationDefaultPicker = document.getElementById("calibration-default-picker");
+  const calibrationDefaultText = document.getElementById("calibration-default-text");
+  const calibrationDefaultOptions = document.getElementById("calibration-default-options");
 
   function dismissOnboarding() {
     localStorage.setItem(ONBOARDING_KEY, "true");
     calibrationBanner.hidden = true;
   }
 
+  function currentCalibrationFamily() {
+    return CALIBRATION_FAMILIES[calibration.familyIndex];
+  }
+  function currentCalibrationSign() {
+    return currentCalibrationFamily().signs[calibration.signIndex];
+  }
+
   function renderCalibrationStep() {
-    const sign = CALIBRATION_SIGNS[calibration.signIndex];
+    calibration.mode = "draw";
+    calibrationDefaultPicker.hidden = true;
+    calibrationStepEl.hidden = false;
+    calibrationReviewActions.hidden = true;
+    const sign = currentCalibrationSign();
     calibrationStepText.innerHTML =
       `<strong>${sign.name}</strong> (${calibration.rep + 1} of ${CALIBRATION_REPS}): trace the shape shown faintly on the circle.`;
     calibrationOverlay.src = sign.image;
     calibrationOverlay.hidden = false;
+  }
+
+  function enterCalibrationReview() {
+    calibration.mode = "review";
+    const sign = currentCalibrationSign();
+    calibrationStepText.innerHTML = `<strong>${sign.name}</strong>: keep this one, or redo it?`;
+    calibrationReviewActions.hidden = false;
   }
 
   function advanceCalibration() {
@@ -335,17 +371,66 @@
       calibration.rep = 0;
       calibration.signIndex++;
     }
-    if (calibration.signIndex >= CALIBRATION_SIGNS.length) {
+    const family = currentCalibrationFamily();
+    if (calibration.signIndex >= family.signs.length) {
+      if (family.signs.length > 1) {
+        enterDefaultPicker(family);
+      } else {
+        setPreferredDefault(family.familyKey, family.signs[0].id);
+        advanceCalibrationFamily();
+      }
+      return;
+    }
+    renderCalibrationStep();
+  }
+
+  function advanceCalibrationFamily() {
+    calibration.familyIndex++;
+    calibration.signIndex = 0;
+    calibration.rep = 0;
+    if (calibration.familyIndex >= CALIBRATION_FAMILIES.length) {
       stopCalibration(true);
       return;
     }
     renderCalibrationStep();
   }
 
+  // Asked once per family, after every member's reps are done, rather than
+  // inferred from whichever sign happened to be calibrated last -- shape
+  // alone can't tell Bend from Direction from Bird, so there's no way to
+  // recover the intended default from the drawing itself after the fact.
+  function enterDefaultPicker(family) {
+    calibration.mode = "pick-default";
+    calibrationStepEl.hidden = true;
+    calibrationOverlay.hidden = true;
+    calibrationDefaultPicker.hidden = false;
+    const names = family.signs.map((s) => s.name).join(", ");
+    calibrationDefaultText.innerHTML = `Which of these should read as by default: <strong>${names}</strong>?`;
+    calibrationDefaultOptions.innerHTML = "";
+    family.signs.forEach((sign) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip chip-image correct-chip";
+      const img = document.createElement("img");
+      img.src = sign.image;
+      img.alt = "";
+      const label = document.createElement("span");
+      label.textContent = sign.name;
+      btn.append(img, label);
+      btn.addEventListener("click", () => {
+        setPreferredDefault(family.familyKey, sign.id);
+        advanceCalibrationFamily();
+      });
+      calibrationDefaultOptions.appendChild(btn);
+    });
+  }
+
   function stopCalibration(completed) {
     calibration = null;
     calibrationStepEl.hidden = true;
     calibrationOverlay.hidden = true;
+    calibrationReviewActions.hidden = true;
+    calibrationDefaultPicker.hidden = true;
     dismissOnboarding();
     lastDrawnEl.textContent = completed
       ? "Calibration saved. Draw normally now, it'll use these examples alongside the built-in ones."
@@ -354,14 +439,29 @@
 
   function startCalibration() {
     calibrationBanner.hidden = true;
-    calibration = { signIndex: 0, rep: 0 };
-    calibrationStepEl.hidden = false;
+    calibration = { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
     renderCalibrationStep();
   }
 
   document.getElementById("calibration-start").addEventListener("click", startCalibration);
   document.getElementById("calibration-skip").addEventListener("click", dismissOnboarding);
   document.getElementById("calibration-stop").addEventListener("click", () => stopCalibration(false));
+  document.getElementById("calibration-keep").addEventListener("click", () => {
+    if (!calibration || calibration.mode !== "review") return;
+    const sign = currentCalibrationSign();
+    if (sign.trainLabel) Training.save(groupPaths, sign.trainLabel);
+    groupPaths = [];
+    state.groupPaths = groupPaths;
+    render();
+    advanceCalibration();
+  });
+  document.getElementById("calibration-redo").addEventListener("click", () => {
+    if (!calibration || calibration.mode !== "review") return;
+    groupPaths = [];
+    state.groupPaths = groupPaths;
+    render();
+    renderCalibrationStep(); // same sign, same rep count -- just try again
+  });
   // Always reachable, not just on first visit: handwriting drifts, and
   // revisiting which sign should default for a family (Bend vs Direction,
   // ...) is a normal thing to want later, not just once at onboarding.

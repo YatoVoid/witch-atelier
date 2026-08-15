@@ -150,7 +150,16 @@ const ZIGZAG_ANGLE = 1.35; // ~77 degrees, used for the closed-shape smooth/chao
 
 // ---- point-cloud shape matching ($1 Unistroke Recognizer) ----
 
-const TEMPLATE_SAMPLE_COUNT = 32;
+// A multi-stroke sign (a decorated arrowhead, Crosshair's four arms
+// concatenated) packs more actual shape into the same point budget than a
+// single clean curve does -- 32 points spread across four arms is only
+// 8 per arm. Every candidate and every template share this one constant
+// (bestAlignedDistance compares them point-for-point, so the counts have
+// to match), so raising it gives every shape more resolution rather than
+// only the complex ones specifically, but that lands exactly where it's
+// needed most without the mismatched-length problem a truly per-shape
+// count would create.
+const TEMPLATE_SAMPLE_COUNT = 64;
 
 function centroidOf(points) {
   let sx = 0,

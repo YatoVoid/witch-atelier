@@ -365,12 +365,15 @@ h2:first-child {
 
 /* Faint reference glyph shown during calibration so the sign being traced
    doesn't require checking the shape guide separately. Sits behind the
-   canvas's own strokes; ignores pointer events so it never blocks drawing. */
+   canvas's own strokes; ignores pointer events so it never blocks drawing.
+   Sized to sit inside the ring itself (RING_RATIO * 2 = 64% of the frame,
+   see js/engine/constants.js), not the whole frame -- oversized against
+   the ring it's meant to guide tracing within was worse than no guide. */
 .calibration-overlay {
   position: absolute;
-  inset: 12%;
-  width: 76%;
-  height: 76%;
+  inset: 24%;
+  width: 52%;
+  height: 52%;
   object-fit: contain;
   opacity: 0.22;
   pointer-events: none;
@@ -416,6 +419,17 @@ h2:first-child {
 
 .calibration-step p strong {
   font-family: var(--font-display);
+}
+
+.calibration-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+#calibration-default-options {
+  margin-top: 0.5rem;
 }
 
 #circle {
