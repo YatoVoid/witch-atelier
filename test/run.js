@@ -186,6 +186,36 @@ function arcSweep(radius, startDeg, endDeg, outward) {
 check("wideOut (dispersion)", classifyStrokeGroup([arcSweep(90, -70, 70, true)]), "dispersion");
 check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]), "convergence");
 
+// A wide sweep sometimes scores a passable, if not great, point-cloud
+// match against "bend" or "wavy" purely by chance (both are smooth
+// curves, easy to superficially resemble): gating the spread check on
+// shape-match confidence used to leave those sweeps stuck with whatever
+// family they happened to score OK against, with no way back to
+// reconsider them. Swept across radius, span, and start angle, since the
+// earlier bug specifically only showed up for some combinations, not all.
+function checkArcSweepRobust(label, outward, passRate = 0.95) {
+  let ok = 0;
+  const total = 60;
+  for (let seed = 1; seed <= total; seed++) {
+    const rand = seededRandom(seed * 71);
+    const radius = 50 + rand() * 130;
+    const span = 90 + rand() * 90;
+    const startDeg = rand() * 360;
+    const jitterAmt = 2 + rand() * 6;
+    const pts = jitterPath(densify(arcSweep(radius, startDeg, startDeg + span, outward), 4), jitterAmt, seed * 131);
+    if (classifyStrokeGroup([pts]) === (outward ? "dispersion" : "convergence")) ok++;
+  }
+  const rate = ok / total;
+  if (rate >= passRate) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`${label}: only ${ok}/${total} (${(rate * 100).toFixed(0)}%) classified correctly`);
+  }
+}
+checkArcSweepRobust("wideOut (dispersion), swept radius/span/start angle", true);
+checkArcSweepRobust("wideIn (convergence), swept radius/span/start angle", false);
+
 // A peak's arms can subtend a wide angle from the ring center once drawn
 // long enough, the same way a straight line passing near center does,
 // without being any less a single sharp corner.

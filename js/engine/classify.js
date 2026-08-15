@@ -60,6 +60,24 @@ function angularSpread(points) {
   return Math.PI * 2 - maxGap;
 }
 
+// How steady a stroke's distance from the ring's center stays. A genuine
+// wide sweep holds roughly the same radius throughout (this ratio rarely
+// drops under ~0.65 even under heavy jitter); a corner or line that
+// happens to pass near center dips toward zero at that point (rarely
+// above ~0.4), even though it can span just as wide an angle as seen from
+// there. Distinguishes the two far more reliably than angular spread
+// alone, which both share.
+function radiusRatio(points) {
+  let minR = Infinity;
+  let maxR = 0;
+  for (const p of points) {
+    const r = Math.hypot(p.x, p.y);
+    if (r < minR) minR = r;
+    if (r > maxR) maxR = r;
+  }
+  return maxR < 1e-6 ? 0 : minR / maxR;
+}
+
 // Counts sharp direction reversals within a stroke. Threshold is
 // deliberately high (~77 degrees) so a smooth wave doesn't register as one.
 function sharpTurnCount(points, angleThreshold) {
@@ -353,7 +371,26 @@ function classifyStrokeGroup(paths, extraTemplates) {
   const totalStrokeLength = valid.reduce((sum, p) => sum + strokeLength(p), 0);
   const overallStart = averagedEndpoint(mainStroke, false);
   const overallEnd = averagedEndpoint(mainStroke, true);
+  // Distance-from-center of end vs start: a straightforward and correct
+  // measure of a wide sweep's radial trend, where the interesting motion
+  // (a slight radius change) is small next to the sweep's own tangential
+  // travel around the ring, so what matters is only the two ends' overall
+  // distance from center, not the path between them.
   const radialDelta = Math.hypot(overallEnd.x, overallEnd.y) - Math.hypot(overallStart.x, overallStart.y);
+  // Comparing raw distance-from-center of start vs end breaks down for a
+  // straight, radially-aimed stroke specifically: a decisive inward pull
+  // that overshoots past the ring's exact center reads the far side as
+  // farther from center than the start, the same way a genuinely outward
+  // stroke would, even though the whole gesture moved toward center
+  // throughout. Projecting the motion onto the radial direction at the
+  // start point instead measures which way it actually moved, not just
+  // where the two ends happen to land -- but only makes sense for a
+  // motion that's mostly radial to begin with, unlike a sweep's mostly
+  // tangential travel, so Column/Pull uses this and Dispersion/
+  // Convergence keeps the distance-based measure above.
+  const startMag = Math.hypot(overallStart.x, overallStart.y) || 1e-6;
+  const radialUnit = { x: overallStart.x / startMag, y: overallStart.y / startMag };
+  const directionalDelta = (overallEnd.x - overallStart.x) * radialUnit.x + (overallEnd.y - overallStart.y) * radialUnit.y;
 
   // Matched against mainStroke alone once it's most of the ink, so a
   // decoration (an arrowhead barb) doesn't create a false "jump" when
@@ -374,24 +411,38 @@ function classifyStrokeGroup(paths, extraTemplates) {
     match = matchShapeTemplate(valid.flat(), extraTemplates);
   }
 
-  // Angular spread is only checked once shape matching fails to find a
-  // confident family (a peak or zigzag can span a wide angle from the
-  // ring's center once its arms are long enough, without being a sweep).
-  // Threshold is the measured gap: every tested straight/bend/bolt/wavy
-  // shape matched under 0.06, every tested wide sweep matched no better.
-  const CONFIDENT_SHAPE_MATCH = 0.06;
-  if (match.distance >= CONFIDENT_SHAPE_MATCH) {
-    // Measured from mainStroke alone: a wide sweep is one continuous arc,
-    // not a dominant arc plus a decoration at a different bearing.
-    const spread = angularSpread(mainStroke);
-    if (spread > 0.85) return radialDelta >= 0 ? "dispersion" : "convergence";
-  }
+  // A wide sweep is checked by two independent geometric facts, not by
+  // whether shape matching happened to find a confident family: a peak or
+  // zigzag can span just as wide an angle from the ring's center as a
+  // genuine sweep once its arms are long enough (angular spread alone
+  // doesn't tell them apart), but it does so by swinging close to center
+  // at its corner, where a real sweep holds a roughly steady distance
+  // throughout (radiusRatio does tell them apart -- see its own comment).
+  // Gating on shape-match confidence instead used to also block plenty of
+  // genuine sweeps that happened to score a passable, if not great, match
+  // against "bend" or "wavy" by chance (both are smooth curves, easy to
+  // resemble at a glance), with no way back to reconsider them as a sweep.
+  // Measured from mainStroke alone: a wide sweep is one continuous arc,
+  // not a dominant arc plus a decoration at a different bearing.
+  const spread = angularSpread(mainStroke);
+  // radiusRatio only guards shapes drawn far enough from center to give it
+  // a meaningful reading. A genuinely tight Convergence, drawn small,
+  // legitimately closes toward a near-zero radius by design -- its ratio
+  // reads even lower than a peak's does, so below this size there's no
+  // threshold that accepts one and rejects the other; the two really are
+  // close to indistinguishable at that scale, the same accepted limit as
+  // a tiny Diamond elsewhere in this file. Left ungated there rather than
+  // wrongly rejecting real small sweeps to chase a fix this scale doesn't
+  // support.
+  const maxRadius = Math.max(...mainStroke.map((p) => Math.hypot(p.x, p.y)));
+  const steadyRadius = maxRadius < 50 || radiusRatio(mainStroke) > 0.5;
+  if (spread > 0.85 && steadyRadius) return radialDelta >= 0 ? "dispersion" : "convergence";
 
   if (match.label === "straight") {
     // Checked before direction: a symmetric 4-arm hub has no reliable
-    // "outward" arm to measure radialDelta from.
+    // "outward" arm to measure direction from.
     if (radiatesFromSharedHub(valid)) return "crosshair";
-    return radialDelta >= 0 ? "column" : "pull";
+    return directionalDelta >= 0 ? "column" : "pull";
   }
   if (match.label === "wavy") return "levitation";
   return match.label; // "bend" or "bolt"
