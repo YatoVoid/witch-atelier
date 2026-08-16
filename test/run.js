@@ -34,6 +34,7 @@ vm.runInContext(
   "this.classifyStrokeGroup = classifyStrokeGroup; this.matchSpell = matchSpell; " +
     "this.familyKeyOf = familyKeyOf; this.bucketCandidates = bucketCandidates; " +
     "this.composeSpell = composeSpell; this.refineByStrokeCount = refineByStrokeCount; " +
+    "this.enforceNotWildlyImpossible = enforceNotWildlyImpossible; this.SIGN_STROKE_RANGE = SIGN_STROKE_RANGE; " +
     "this.SPELL_SIGNATURES = SPELL_SIGNATURES; this.SIGN_ARCHETYPES = SIGN_ARCHETYPES;",
   sandbox
 );
@@ -44,6 +45,8 @@ const {
   bucketCandidates,
   composeSpell,
   refineByStrokeCount,
+  enforceNotWildlyImpossible,
+  SIGN_STROKE_RANGE,
   SPELL_SIGNATURES,
   SIGN_ARCHETYPES,
 } = sandbox;
@@ -608,6 +611,14 @@ check("closedSmooth count 5 promotes diamond to repetition", refineByStrokeCount
 check("crush (closedChaotic) is untouched, different family bucket", refineByStrokeCount("crush", 5), "crush");
 check("pull (sole member of its family) is untouched", refineByStrokeCount("pull", 5), "pull");
 
+// enforceNotWildlyImpossible: never fires on a shortfall (undershooting
+// a family's minimum is normal), only on wild excess past its ceiling.
+check("well within range: untouched", enforceNotWildlyImpossible("column", 2), "column");
+check("under a family's minimum: untouched, that's the normal single-gesture case", enforceNotWildlyImpossible("column", 1), "column");
+check("a couple strokes past the ceiling: untouched, within the tolerance margin", enforceNotWildlyImpossible("diamond", 6), "diamond");
+check("wildly past the ceiling: corrected to whatever the count actually fits", enforceNotWildlyImpossible("diamond", 13), "rain");
+check("wildly past the ceiling from Crush too (same family bucket)", enforceNotWildlyImpossible("crush", 13), "rain");
+
 // ---- 8. a many-stroke drawing can never come back labeled Diamond or
 // Crush, whose combined range (1-5 strokes total between all of
 // closedSmooth/closedChaotic) makes that a physical impossibility.
@@ -646,6 +657,129 @@ const rainLikeResult = classifyStrokeGroup(manyStrokesWithLoopyDominant(13));
 check("a 13-stroke drawing with a self-closing dominant stroke is not Diamond", rainLikeResult !== "diamond", true);
 check("a 13-stroke drawing with a self-closing dominant stroke is not Crush", rainLikeResult !== "crush", true);
 check("...and actually resolves to Rain, the only sign 13 strokes fits", rainLikeResult, "rain");
+
+// ---- 9. fuzz: no drawing at a high stroke count should ever classify
+// into a family whose combined stroke ceiling (the most generous member,
+// across everyone in SIGN_STROKE_RANGE with known data) can't plausibly
+// reach that many. This is the general form of the Rain/Diamond bug
+// above, found by classifyStrokeGroup's own production backstop
+// (enforceNotWildlyImpossible) failing to correct it -- checking only
+// wild EXCESS, on purpose: undershooting a family's minimum is this
+// app's normal single-gesture behavior (every "@ position" check earlier
+// in this file draws with exactly one stroke and expects a family
+// default back) and is never treated as a violation, only a drawing with
+// far more strokes than any member of the landed family could ever use.
+//
+// Six shape generators (one per SIGN_BUCKETS family) each get padded
+// with a random number of small decorative strokes scattered around a
+// random center, at several stroke counts well past what any family
+// here tops out at (SIGN_STROKE_RANGE's own ceiling is 16, Rain's) --
+// covering combinations no single hand-written example would think to
+// try, the actual value of a fuzz test over more hand-picked regression
+// cases like section 8 above. ----
+function familyStrokeBounds(archetypeId) {
+  let max = -Infinity;
+  for (const id of bucketCandidates(archetypeId)) {
+    const range = SIGN_STROKE_RANGE[id];
+    if (range) max = Math.max(max, range[1]);
+  }
+  return max === -Infinity ? null : max;
+}
+
+function randomStraight(cx, cy, rand) {
+  const angle = rand() * Math.PI * 2;
+  const len = 80 + rand() * 100;
+  return line(cx, cy, cx + Math.cos(angle) * len, cy + Math.sin(angle) * len, 10);
+}
+function randomSweep(cx, cy, rand) {
+  const radius = 60 + rand() * 100;
+  const span = 100 + rand() * 80;
+  const start = rand() * 360;
+  const outward = rand() < 0.5;
+  const n = 24;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const deg = start + span * t;
+    const rad = (deg * Math.PI) / 180;
+    const r = outward ? radius + t * 20 : radius - t * 20;
+    pts.push({ x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) });
+  }
+  return pts;
+}
+function randomPeak(cx, cy, rand) {
+  return peakAt(cx, cy, 25 + rand() * 40);
+}
+function randomWavy(cx, cy, rand) {
+  return wavyWiggle(cx, cy, 12 + rand() * 20);
+}
+function randomClosedSmooth(cx, cy, rand) {
+  return realDiamond(cx, cy, 25 + rand() * 45);
+}
+function randomChaotic(cx, cy, rand) {
+  return chaoticScribble(cx, cy, 25 + rand() * 35);
+}
+
+// Only checks wild EXCESS, never a shortfall: undershooting a family's
+// documented minimum is normal and constant in this app (drawing Column
+// with a single stroke, no decorative extras, is the ordinary, intended,
+// minimal gesture -- every "@ position" check earlier in this file does
+// exactly that), so that's never treated as a violation. A margin of 4
+// strokes past a family's own ceiling is the threshold before something
+// counts as a violation here, the same order of magnitude as the
+// reported bug (13 strokes for a family that tops out at 5): a couple
+// of strokes over is plausible over-drawing, nowhere near a whole
+// different, much larger sign's worth of extra strokes is not.
+//
+// Capped at 16, the highest ceiling anything in SIGN_STROKE_RANGE has
+// (Rain's own max) -- past that, enforceNotWildlyImpossible in
+// classify.js has correctly run out of anything to correct TO (nothing
+// documented reaches 17+ strokes either), and keeps the original guess
+// as the least-wrong fallback available rather than inventing an answer
+// with no data behind it. That's a real, known, and accepted limit, not
+// a bug this fuzz test should be flagging.
+function fuzzStrokeCountPlausibility(label, primaryShapeFn) {
+  let violations = 0;
+  let total = 0;
+  const examples = [];
+  for (const count of [10, 13, 16]) {
+    for (let seed = 1; seed <= 8; seed++) {
+      const rand = seededRandom(seed * 733 + count * 17);
+      const cx = (rand() - 0.5) * 200;
+      const cy = (rand() - 0.5) * 200;
+      const paths = [primaryShapeFn(cx, cy, rand)];
+      for (let i = 0; i < count - 1; i++) {
+        const a = rand() * Math.PI * 2;
+        const r = 40 + rand() * 120;
+        const ox = cx + Math.cos(a) * r;
+        const oy = cy + Math.sin(a) * r;
+        paths.push(shortLine(ox, oy, ox + 15 + rand() * 15, oy + 15 + rand() * 15));
+      }
+      total++;
+      const result = classifyStrokeGroup(paths);
+      if (result === null) continue;
+      const max = familyStrokeBounds(result);
+      if (max === null) continue; // family has no known-data members, can't judge
+      if (count > max + 4) {
+        violations++;
+        if (examples.length < 5) examples.push(`${count} strokes -> ${result} (family max ${max})`);
+      }
+    }
+  }
+  if (violations === 0) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`${label}: ${violations}/${total} stroke-count-impossible results -- ${examples.join("; ")}`);
+  }
+}
+
+fuzzStrokeCountPlausibility("fuzz: straight-shaped drawings at high stroke counts", randomStraight);
+fuzzStrokeCountPlausibility("fuzz: wide-sweep-shaped drawings at high stroke counts", randomSweep);
+fuzzStrokeCountPlausibility("fuzz: peak/zigzag-shaped drawings at high stroke counts", randomPeak);
+fuzzStrokeCountPlausibility("fuzz: wavy-shaped drawings at high stroke counts", randomWavy);
+fuzzStrokeCountPlausibility("fuzz: closed-smooth-shaped drawings at high stroke counts", randomClosedSmooth);
+fuzzStrokeCountPlausibility("fuzz: chaotic-scribble-shaped drawings at high stroke counts", randomChaotic);
 
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);

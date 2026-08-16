@@ -318,7 +318,17 @@ function matchShapeTemplate(rawPoints, extraTemplates) {
 // the shape actually drawn: real Crosshair data still clears it,
 // real Pull/Repetition data (measured directly) mostly no longer does.
 function radiatesFromSharedHub(strokes) {
-  if (strokes.length < 3) return false;
+  // Crosshair's own canon count is exactly 4 strokes; nothing else in
+  // this vocabulary is hub-shaped. The hub check below only looks at
+  // whether ANY 3+ strokes share a nearby endpoint, with no regard for
+  // how many OTHER, unrelated strokes exist alongside them -- with
+  // enough total strokes scattered around a drawing, 3 of them landing
+  // near each other by pure chance stops being unlikely, which took a
+  // many-stroke sign (Bird, Rain, Dancing Puppet, all 11+ strokes) down
+  // this branch on a coincidence among a handful of them, the same
+  // failure shape as the closed-shape bound above: a small part of the
+  // drawing speaking for strokes it has nothing to do with.
+  if (strokes.length < 3 || strokes.length > 6) return false;
   const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
   let minX = Infinity,
     minY = Infinity,
@@ -595,9 +605,88 @@ function refineByStrokeCount(id, strokeCount) {
   return id;
 }
 
+// Same canon min/max data STROKE_COUNT_OVERRIDES promotes toward,
+// flattened to one range per archetype. Used only as a backstop against
+// wild EXCESS below (enforceNotWildlyImpossible), never as a floor:
+// undershooting a family's stated minimum is this app's normal, constant
+// behavior (every single-stroke default drawing does exactly that,
+// deliberately, by design) and is never treated as a problem. A blanket
+// version of this that also rejected shortfalls was tried and reverted
+// (see the git history around when this comment was added) -- it broke
+// ordinary one-stroke drawing across the entire app, since most of these
+// ranges describe how the full canon glyph is built in the source
+// material, not the minimal gesture this app actually asks for.
+const SIGN_STROKE_RANGE = {
+  column: [2, 2],
+  crosshair: [4, 4],
+  enlarge: [12, 12],
+  pull: [2, 6],
+  direction: [1, 2],
+  radial: [2, 2],
+  rain: [13, 16],
+  billowing: [1, 4],
+  weave: [1, 3],
+  window: [3, 6],
+  collection: [1, 1],
+  crush: [1, 1],
+  bend: [1, 3],
+  bolt: [2, 5],
+  diamond: [1, 4],
+  repetition: [4, 5],
+  levitation: [2, 4],
+  float: [2, 2],
+  bird: [11, 14],
+  "dancing-puppet": [12, 13],
+  eye: [2, 3],
+  vision: [4, 4],
+};
+
+function familyStrokeCeiling(id) {
+  let max = -Infinity;
+  for (const memberId of bucketCandidates(id)) {
+    const range = SIGN_STROKE_RANGE[memberId];
+    if (range) max = Math.max(max, range[1]);
+  }
+  return max === -Infinity ? null : max;
+}
+
+// A drawing with far more strokes than this family could ever use, even
+// at its single most generous documented member, isn't just an unlikely
+// pick within that family (refineByStrokeCount handles picking between
+// siblings) -- it means the shape pipeline got the FAMILY itself wrong,
+// the same failure the closed-shape and hub-detection stroke-count
+// bounds elsewhere in this file already guard against for those two
+// specific shortcuts. This catches it regardless of which internal path
+// produced it. A margin of 4 strokes past the family's ceiling before
+// this fires at all, so a couple of extra decorative strokes over
+// budget reads as normal over-drawing, not a different sign entirely --
+// the reported bug this exists for was 13 strokes against a ceiling of
+// 4, nowhere near that close. Prefers an archetype whose own range the
+// count actually falls inside; failing that, whichever archetype's
+// ceiling is the smallest one still able to reach this count, the
+// tightest plausible replacement available. If nothing fits at all (a
+// count no sign here is documented anywhere near), the original id is
+// kept -- there's no better-justified answer to swap in.
+function enforceNotWildlyImpossible(id, strokeCount) {
+  const ceiling = familyStrokeCeiling(id);
+  if (ceiling === null || strokeCount <= ceiling + 4) return id;
+  let closest = null;
+  let closestCeiling = Infinity;
+  for (const candidateId in SIGN_STROKE_RANGE) {
+    const [min, max] = SIGN_STROKE_RANGE[candidateId];
+    if (strokeCount >= min && strokeCount <= max) return candidateId;
+    if (max >= strokeCount && max < closestCeiling) {
+      closestCeiling = max;
+      closest = candidateId;
+    }
+  }
+  return closest || id;
+}
+
 function classifyStrokeGroup(paths, extraTemplates) {
   const id = classifyShapeFamily(paths, extraTemplates);
   if (id === null) return null;
   const strokeCount = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3).length;
-  return refineByStrokeCount(id, strokeCount);
+  const refined = refineByStrokeCount(id, strokeCount);
+  return enforceNotWildlyImpossible(refined, strokeCount);
 }
