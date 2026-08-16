@@ -590,8 +590,18 @@ h2:first-child {
   margin-top: 0.5rem;
 }
 
+/* "none" blocked every default touch gesture on the canvas, pinch-zoom
+   included -- needed for a one-finger drag to reach the pointer handlers
+   below as a stroke instead of the browser reading it as a page-pan
+   first, but it also meant there was no way to zoom in for a more
+   precise stroke, or to pan around once zoomed, without lifting off the
+   canvas entirely first. "pinch-zoom" keeps the one-finger case fully
+   under this app's own control (a plain drag still isn't a browser
+   default here, so drawing is unaffected) while explicitly allowing the
+   two-finger pinch/pan gesture through to the browser instead of
+   swallowing it too. */
 #circle {
-  touch-action: none;
+  touch-action: pinch-zoom;
   cursor: crosshair;
   transition: transform 0.5s ease;
 }
