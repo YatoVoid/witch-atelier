@@ -153,8 +153,9 @@ for (const { label, ox, oy } of positions) {
     "pull"
   );
 
-  // zigzag/bend: single sharp peak, symmetric arms
-  check(`zigzag/bend @ ${label}`, classifyStrokeGroup([peakAt(ox, oy)]), "bend");
+  // zigzag/bend shape (single sharp peak, symmetric arms) defaults to
+  // "direction", the more commonly used of that family's members.
+  check(`zigzag/bend shape @ ${label} defaults to direction`, classifyStrokeGroup([peakAt(ox, oy)]), "direction");
 
   // zigzag/bolt: real multi-turn zigzag
   check(`zigzag/bolt @ ${label}`, classifyStrokeGroup([zigzag(ox, oy, 90, 5)]), "bolt");
@@ -220,7 +221,7 @@ checkArcSweepRobust("wideIn (convergence), swept radius/span/start angle", false
 // long enough, the same way a straight line passing near center does,
 // without being any less a single sharp corner.
 for (const arm of [35, 70, 100]) {
-  check(`wide-armed bend (arm=${arm}) is not mistaken for a sweep`, classifyStrokeGroup([peakAt(150, 0, arm)]), "bend");
+  check(`wide-armed bend (arm=${arm}) is not mistaken for a sweep`, classifyStrokeGroup([peakAt(150, 0, arm)]), "direction");
 }
 
 // Direction's glyph is a bare peak, so it must be reachable from the
@@ -378,7 +379,7 @@ checkJitterRobust("straightOut (column)", () => line(90, 0, 180, 0), "column");
 checkJitterRobust("straightIn (pull)", () => line(180, 0, 90, 0), "pull");
 // A single sharp corner is the closest neighboring family to a gentle
 // wiggle, so this one holds a slightly lower bar under heavy noise.
-checkJitterRobust("zigzag/bend", () => peakAt(150, 0), "bend", 0.7);
+checkJitterRobust("zigzag/bend shape defaults to direction", () => peakAt(150, 0), "direction", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
@@ -447,8 +448,8 @@ check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup
 realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "crosshair", 0.6);
 
 // ---- 5b. a bare peak (Direction/Bend's shared shape) has to read as
-// "bend" from any rotation and either hand chirality (mirrored), not just
-// the one orientation it happened to be traced at. Real hands rarely draw
+// "direction" from any rotation and either hand chirality (mirrored), not
+// just the one orientation it happened to be traced at. Real hands rarely draw
 // a peak with equal arm lengths or a dead-centered apex either, so the
 // peak itself is built asymmetric and re-randomized per seed. ----
 function rotatePoints(points, deg) {
@@ -486,7 +487,7 @@ function checkPeakOrientations(label, ringOffset, passRate) {
           y: p.y + ringOffset * Math.sin((deg * Math.PI) / 180),
         }));
         pts = jitterPath(densify(pts, 3), JITTER_PX, seed * 131 + deg + (flip ? 1000 : 0));
-        if (classifyStrokeGroup([pts]) === "bend") ok++;
+        if (classifyStrokeGroup([pts]) === "direction") ok++;
       }
     }
   }
@@ -495,7 +496,7 @@ function checkPeakOrientations(label, ringOffset, passRate) {
     pass++;
   } else {
     fail++;
-    failures.push(`${label}: only ${ok}/${total} (${(rate * 100).toFixed(0)}%) classified as "bend"`);
+    failures.push(`${label}: only ${ok}/${total} (${(rate * 100).toFixed(0)}%) classified as "direction"`);
   }
 }
 // Drawn at a normal ring-relative position (matching the offset the other
@@ -535,25 +536,25 @@ function curvedPeak(x0, y0, xTip, yTip, x1, y1) {
 checkJitterRobust(
   "steep narrow peak is not mistaken for a closed shape",
   () => curvedPeak(-20, 60, 0, -90, 25, 55),
-  "bend",
+  "direction",
   0.95
 );
 
 // A shape the matcher is very sure about (here, a razor-sharp corner,
-// point-cloud distance to "bend" under 0.02) has to stay Bend even when
-// drawn at a position where its endpoints happen to sit at a similar
-// distance from ring center and span a wide angle from there -- the same
-// coincidence a genuine wide sweep produces. Regression test for a
-// mirror-matching side effect: removing the old confidence gate entirely
-// (to let genuine sweeps that scored a mediocre match get reconsidered,
-// see the wideOut/wideIn tests above) briefly let this get misread as
-// Dispersion too.
+// point-cloud distance to "bend" under 0.02) has to stay on the bend
+// family's default (Direction) even when drawn at a position where its
+// endpoints happen to sit at a similar distance from ring center and span
+// a wide angle from there -- the same coincidence a genuine wide sweep
+// produces. Regression test for a mirror-matching side effect: removing
+// the old confidence gate entirely (to let genuine sweeps that scored a
+// mediocre match get reconsidered, see the wideOut/wideIn tests above)
+// briefly let this get misread as Dispersion too.
 check(
   "a confidently-matched sharp corner is not mistaken for a sweep",
   classifyStrokeGroup([[
     { x: -60, y: 50 }, { x: -5, y: -70 }, { x: 55, y: 55 },
   ]]),
-  "bend"
+  "direction"
 );
 
 // ---- 6. drawing a sign larger produces a noticeably stronger reading,

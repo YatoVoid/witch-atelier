@@ -519,5 +519,12 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // amount of synthetic testing had, since synthetic tests only ever
   // checked the label string, not which family it actually belonged to.
   if (match.label === "wavy") return "float";
-  return match.label; // "bend" or "bolt"
+  // A bend-shaped stroke (single sharp peak) defaults to "direction"
+  // rather than the template's own name "bend" -- Direction sees far
+  // more use in practice than Bend does, so an untrained guess is right
+  // more often this way. Calibrating a preference for this family (see
+  // PREFERRED_DEFAULT_KEY in app.js) still overrides it regardless of
+  // which archetype this returns, same as before.
+  if (match.label === "bend") return "direction";
+  return match.label; // "bolt"
 }

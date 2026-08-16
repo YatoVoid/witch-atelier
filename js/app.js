@@ -72,15 +72,16 @@
   }));
 
   // Shape alone can't tell apart signs in the same family (see classify.js),
-  // so correcting "Bend" to "Direction" only ever teaches the shape
-  // matcher what a bend/direction/bolt/bird-shaped stroke looks like --
-  // classifyStrokeGroup() always returns the family's one hardcoded
-  // default archetype, "bend", regardless of how much training data piles
-  // up for it, so a correction to a non-default family member (Direction,
-  // Enlarge, Bird, Float, ...) could never actually change what showed up
-  // next time, no matter how many times it was repeated. This remembers a
-  // preferred default per family separately from shape training, and
-  // finalizeGroup() below applies it after classification.
+  // so correcting "Direction" to "Bend" (or Enlarge, Bird, Float, ...) only
+  // ever teaches the shape matcher what a bend/direction/bolt/bird-shaped
+  // stroke looks like -- classifyStrokeGroup() always returns the family's
+  // one hardcoded default archetype ("direction" for a bend-shaped peak,
+  // chosen since it's the more commonly used of the two) regardless of how
+  // much training data piles up for it, so a correction to a non-default
+  // family member could never actually change what showed up next time, no
+  // matter how many times it was repeated. This remembers a preferred
+  // default per family separately from shape training, and finalizeGroup()
+  // below applies it after classification.
   const PREFERRED_DEFAULT_KEY = "witch-atelier:preferred-defaults";
   function getPreferredDefaults() {
     try {
@@ -265,7 +266,7 @@
 
     const detectedArchetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
     // Swap in a preferred default for this family if one's been taught,
-    // e.g. Direction instead of Bend -- see PREFERRED_DEFAULT_KEY above.
+    // e.g. Bend instead of Direction -- see PREFERRED_DEFAULT_KEY above.
     // bucketCandidates() re-derives the same family the detected id is
     // already in, so this can only ever substitute within it, never
     // change what family (and therefore what effect) the sign resolves to.
