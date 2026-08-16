@@ -556,6 +556,23 @@
   }
 
   function stopCalibration(completed) {
+    // Whatever's mid-flight when calibration stops -- a stroke still
+    // being drawn, or a finished rep sitting in review waiting on
+    // Keep/Redo -- has to be thrown away here too, the same way
+    // keepCalibrationRep()/redoCalibrationRep() already clear it on
+    // their own exits. Left alone, it stayed in state.groupPaths
+    // (rendered semi-transparent by drawScene, separately from
+    // state.signs) forever: Clear only resets state.signs, so there was
+    // no way back to a blank circle afterward.
+    if (groupTimer) {
+      clearTimeout(groupTimer);
+      groupTimer = null;
+    }
+    drawing = false;
+    rawPoints = [];
+    state.livePath = null;
+    groupPaths = [];
+    state.groupPaths = groupPaths;
     calibration = null;
     calibrationStepEl.hidden = true;
     calibrationOverlay.hidden = true;
@@ -565,6 +582,7 @@
     lastDrawnEl.textContent = completed
       ? "Calibration saved. Draw normally now, it'll use these examples alongside the built-in ones."
       : "";
+    render();
   }
 
   function startCalibration(repCount) {
