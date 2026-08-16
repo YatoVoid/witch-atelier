@@ -404,10 +404,12 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   // only": Bird flies, Rain falls, Billowing puffs out soft and slow,
   // Weave stretches into a long flexible ribbon, Crosshair locks onto a
   // single precise line, Diamond facets the burst into a crystalline
-  // pattern instead of a random scatter. Not every sign needs this --
-  // most of the 24 are already well served by the shared spread/focus/
-  // sustain/burst system above, this is only for the ones a shared
-  // number can't really capture.
+  // pattern instead of a random scatter, Repetition echoes/renews
+  // instead of firing once, Collection gathers scattered material in
+  // toward the seal instead of launching outward. Not every sign needs
+  // this -- most of the 24 are already well served by the shared
+  // spread/focus/sustain/burst system above, this is only for the ones
+  // a shared number can't really capture.
   const sw = params.signWeights || {};
   const birdW = sw.bird || 0;
   const rainW = sw.rain || 0;
@@ -415,6 +417,8 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const weaveW = sw.weave || 0;
   const crosshairW = sw.crosshair || 0;
   const diamondW = sw.diamond || 0;
+  const repetitionW = sw.repetition || 0;
+  const collectionW = sw.collection || 0;
 
   // "Amount": Dispersion/Radial/Rain make the burst wider AND busier
   // (more particles to actually fill the wider arc), Convergence/Window
@@ -496,14 +500,34 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
     const speed = (0.65 + Math.random() * 0.75 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4) * (1 + crosshairW * 0.5);
     const wobblePhase = Math.random() * Math.PI * 2;
     const spinDir = Math.random() < 0.5 ? -1 : 1;
-    return { angle, speed, offset: Math.random() * 0.35 * wildness, wobblePhase, spinDir, trail: [] };
+    // Collection: "gathers material from around the seal inward" -- a
+    // scattered starting point on the ring, independent of whatever
+    // angle the burst logic above picked, used to pull particles in
+    // FROM there rather than launching them from center. Picked once
+    // here, at creation, not per-frame, or it would jitter to a new
+    // scatter point every frame instead of tracing one gathering path.
+    const gatherAngle = Math.random() * Math.PI * 2;
+    return { angle, speed, offset: Math.random() * 0.35 * wildness, wobblePhase, spinDir, gatherAngle, trail: [] };
   });
 
   const start = performance.now();
   function frame(now) {
     const t = Math.min(1, (now - start) / effectiveDuration);
     drawScene(ctx, size, sceneState);
-    drawRingPulse(ctx, cx, cy, ringR, t, colorRgb);
+    // Repetition: "restores what it touches, as if new" -- one ring
+    // pulse read as a single activation regardless of how many times it
+    // fires, so this repeats it, up to 3 separate echoes staggered
+    // across the cast instead of one, each one its own small renewal
+    // rather than a continuous fade. Reuses drawRingPulse as-is, just
+    // called again on a delayed clock -- an echo whose own delayed t
+    // hasn't reached 0 yet simply doesn't draw anything (see its own
+    // pulseT >= 1 guard), so this is safe to call unconditionally.
+    const echoCount = repetitionW > 0.15 ? 1 + Math.round(repetitionW * 2) : 1;
+    const echoGap = 0.22;
+    for (let echo = 0; echo < echoCount; echo++) {
+      const echoT = t - echo * echoGap;
+      if (echoT >= 0) drawRingPulse(ctx, cx, cy, ringR, echoT, colorRgb);
+    }
     if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t, colorRgb);
     if (mode === "burst" && params.hasDirection) drawDirectionalSurge(ctx, cx, cy, size, params.direction, colorRgb, t);
 
@@ -562,14 +586,33 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         const perp = p.angle + Math.PI / 2;
         x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
         y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity + buoyancy;
-        // Bird: "animates flight" -- a single lazy arc across the whole
-        // flight instead of a straight line, like a wing beat's rise and
-        // fall rather than a launch. spinDir picks which way it banks so
-        // a spray of Bird particles doesn't all swoop identically.
+        // Bird: "animates flight" -- a genuine rise-then-glide arc (an
+        // actual lift, independent of whatever direction the particle
+        // is otherwise headed, not just a sideways wobble along its
+        // path) plus a banking curve on top, so this reads as a swooping
+        // flight silhouette rather than a wobblier version of the plain
+        // burst. spinDir picks which way each particle banks so a spray
+        // of them doesn't all swoop identically.
         if (birdW > 0.1) {
-          const swoop = Math.sin(pt * Math.PI) * size * 0.14 * birdW * p.spinDir;
-          x += Math.cos(perp) * swoop;
-          y += Math.sin(perp) * swoop;
+          const lift = Math.sin(pt * Math.PI) * size * 0.18 * birdW;
+          y -= lift;
+          const bank = Math.sin(pt * Math.PI * 1.5 + p.wobblePhase) * size * 0.09 * birdW * p.spinDir;
+          x += Math.cos(perp) * bank;
+          y += Math.sin(perp) * bank;
+        }
+        // Collection: "gathers material from around the seal inward" --
+        // blends the particle's position toward a point on the ring
+        // (gatherAngle, picked once at creation) that shrinks toward
+        // center as the cast plays, instead of the plain burst's launch
+        // from center outward. At collectionW near 1 this replaces the
+        // burst motion almost entirely; blended for a cast that mixes
+        // Collection with other directional signs.
+        if (collectionW > 0.1) {
+          const gatherR = ringR * (1 - eased);
+          const gx = cx + Math.cos(p.gatherAngle) * gatherR;
+          const gy = cy + Math.sin(p.gatherAngle) * gatherR;
+          x = x * (1 - collectionW) + gx * collectionW;
+          y = y * (1 - collectionW) + gy * collectionW;
         }
         // Convergence on a directional cast also pulls stray particles
         // back toward the center line as they age, not just shortening
