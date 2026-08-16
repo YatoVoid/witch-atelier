@@ -348,7 +348,7 @@ function radiatesFromSharedHub(strokes) {
   return bestHubSize >= 3;
 }
 
-function classifyStrokeGroup(paths, extraTemplates) {
+function classifyShapeFamily(paths, extraTemplates) {
   const valid = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3);
   if (valid.length === 0) return null;
 
@@ -527,4 +527,56 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // which archetype this returns, same as before.
   if (match.label === "bend") return "direction";
   return match.label; // "bolt"
+}
+
+// Separate strokes per sign, min and max, reported from the source
+// material: Column always 2, Crosshair always 4, Enlarge always 12,
+// Pull 2-6, Direction 1-2, Radial always 2, Rain 13-16, Billowing 1-4,
+// Weave 1-3, Window 3-6, Collection always 1, Crush always 1, Bend 1-3,
+// Bolt 2-5, Diamond 1-4, Repetition 4-5, Levitation 2-4, Float always 2,
+// Bird 11-14, Dancing Puppet 12-13, Eye 2-3, Vision always 4. Shape alone
+// can't tell family members apart (see SIGN_BUCKETS); most of these
+// ranges overlap a sibling's too closely to trust on their own (Column's
+// fixed 2 sits right inside Levitation's 2-4, for instance), so this
+// only fires where a count is clear of every other member checked here.
+// Left out entirely: Crosshair, since a hub-shaped stroke is already
+// confirmed structurally before stroke count ever gets a say (see
+// radiatesFromSharedHub above), and Pull/Crush, the sole members of
+// their own families with nothing to disambiguate against.
+const STROKE_COUNT_OVERRIDES = {
+  straightOut: [
+    { min: 3, max: 4, id: "levitation" },
+    { min: 10, max: 14, id: "enlarge" },
+  ],
+  wideOut: [
+    { min: 4, max: 4, id: "billowing" },
+    { min: 13, max: 16, id: "rain" },
+  ],
+  wideIn: [{ min: 3, max: 6, id: "window" }],
+  wavy: [
+    { min: 4, max: 4, id: "vision" },
+    { min: 12, max: 13, id: "dancing-puppet" },
+  ],
+  zigzag: [
+    { min: 4, max: 5, id: "bolt" },
+    { min: 11, max: 14, id: "bird" },
+  ],
+  closedSmooth: [{ min: 5, max: 5, id: "repetition" }],
+};
+
+function refineByStrokeCount(id, strokeCount) {
+  if (id === "crosshair") return id;
+  const rules = STROKE_COUNT_OVERRIDES[familyKeyOf(id)];
+  if (!rules) return id;
+  for (const rule of rules) {
+    if (strokeCount >= rule.min && strokeCount <= rule.max) return rule.id;
+  }
+  return id;
+}
+
+function classifyStrokeGroup(paths, extraTemplates) {
+  const id = classifyShapeFamily(paths, extraTemplates);
+  if (id === null) return null;
+  const strokeCount = paths.filter((p) => p.length >= 2 && strokeLength(p) > 1e-3).length;
+  return refineByStrokeCount(id, strokeCount);
 }

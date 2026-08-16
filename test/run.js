@@ -33,11 +33,20 @@ for (const f of files) {
 vm.runInContext(
   "this.classifyStrokeGroup = classifyStrokeGroup; this.matchSpell = matchSpell; " +
     "this.familyKeyOf = familyKeyOf; this.bucketCandidates = bucketCandidates; " +
-    "this.composeSpell = composeSpell; " +
+    "this.composeSpell = composeSpell; this.refineByStrokeCount = refineByStrokeCount; " +
     "this.SPELL_SIGNATURES = SPELL_SIGNATURES; this.SIGN_ARCHETYPES = SIGN_ARCHETYPES;",
   sandbox
 );
-const { classifyStrokeGroup, matchSpell, familyKeyOf, bucketCandidates, composeSpell, SPELL_SIGNATURES, SIGN_ARCHETYPES } = sandbox;
+const {
+  classifyStrokeGroup,
+  matchSpell,
+  familyKeyOf,
+  bucketCandidates,
+  composeSpell,
+  refineByStrokeCount,
+  SPELL_SIGNATURES,
+  SIGN_ARCHETYPES,
+} = sandbox;
 
 let pass = 0;
 let fail = 0;
@@ -571,6 +580,33 @@ const largeColumn = composeSpell({
 });
 check("a single large sign reads as higher intensity than a small one", largeColumn.params.intensity > smallColumn.params.intensity, true);
 check("that difference actually shows up in the label text, not just the number", largeColumn.label !== smallColumn.label, true);
+
+// ---- 7. stroke count disambiguates a family's shape-default toward a
+// specific sibling when (and only when) the count is clear of every other
+// member's own range, using the min/max separate-strokes-per-sign counts
+// reported from the source material. Tested directly against
+// refineByStrokeCount rather than through real stroke geometry: building
+// a synthetic multi-stroke drawing that reliably avoids also tripping
+// radiatesFromSharedHub (a many-stroke cluster easily looks like a hub by
+// accident) tests two unrelated heuristics at once instead of just this
+// one. ----
+check("column stays column at its own count (2)", refineByStrokeCount("column", 2), "column");
+check("straightOut count 3 promotes to levitation", refineByStrokeCount("column", 3), "levitation");
+check("straightOut count 4 (non-hub) promotes to levitation", refineByStrokeCount("column", 4), "levitation");
+check("straightOut count 12 promotes to enlarge", refineByStrokeCount("column", 12), "enlarge");
+check("straightOut count 8 (gap between ranges) makes no guess", refineByStrokeCount("column", 8), "column");
+check("crosshair is never reinterpreted by stroke count", refineByStrokeCount("crosshair", 4), "crosshair");
+check("crosshair is never reinterpreted by stroke count, even at a wildly different count", refineByStrokeCount("crosshair", 12), "crosshair");
+check("wideOut count 4 promotes dispersion to billowing", refineByStrokeCount("dispersion", 4), "billowing");
+check("wideOut count 15 promotes dispersion to rain", refineByStrokeCount("dispersion", 15), "rain");
+check("wideIn count 5 promotes convergence to window", refineByStrokeCount("convergence", 5), "window");
+check("wavy count 4 promotes float to vision", refineByStrokeCount("float", 4), "vision");
+check("wavy count 12 promotes float to dancing-puppet", refineByStrokeCount("float", 12), "dancing-puppet");
+check("zigzag count 4 promotes direction to bolt", refineByStrokeCount("direction", 4), "bolt");
+check("zigzag count 12 promotes direction to bird", refineByStrokeCount("direction", 12), "bird");
+check("closedSmooth count 5 promotes diamond to repetition", refineByStrokeCount("diamond", 5), "repetition");
+check("crush (closedChaotic) is untouched, different family bucket", refineByStrokeCount("crush", 5), "crush");
+check("pull (sole member of its family) is untouched", refineByStrokeCount("pull", 5), "pull");
 
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);
