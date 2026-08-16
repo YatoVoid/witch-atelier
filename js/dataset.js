@@ -40,24 +40,6 @@ const CalibrationDataset = {
     return counts;
   },
 
-  // Restores a previously-exported file (see download() below) on top of
-  // whatever's already here -- for after clearing site data or switching
-  // browsers, where localStorage (and with it, every drawing and the
-  // calibration progress pointer) is just gone, but the export file
-  // survived on disk. Only appends the raw drawings; the preferred-
-  // default choices from js/app.js live under a separate key not
-  // included in the export, so any family completed before the reset
-  // will need its default re-picked once its signs are drawn again.
-  addAll(entries) {
-    const merged = CalibrationDataset.list().concat(entries);
-    try {
-      localStorage.setItem(DATASET_KEY, JSON.stringify(merged));
-      return true;
-    } catch {
-      return false;
-    }
-  },
-
   clear() {
     localStorage.removeItem(DATASET_KEY);
   },

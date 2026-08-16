@@ -23,23 +23,6 @@
   display: none !important;
 }
 
-/* For elements a script still needs to interact with while hidden --
-   the import file input's programmatic .click() to open the native
-   picker silently does nothing on some mobile browsers (iOS Safari
-   among them) when the element is display:none, unlike a merely
-   invisible one. */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 html,
 body {
   margin: 0;

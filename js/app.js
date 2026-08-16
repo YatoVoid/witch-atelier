@@ -24,7 +24,6 @@
   // the full first-visit banner.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
   const QUICK_CALIBRATION_REPS = 2;
-  const DATASET_CALIBRATION_REPS = 25; // building an offline-training export, not just live matching
   let calibrationRepCount = QUICK_CALIBRATION_REPS;
   let calibration = null; // { signIndex, rep } while active, else null
 
@@ -567,12 +566,6 @@
   // banner, so it's available without sitting in front of the user
   // every time they open the app.
   document.getElementById("recalibrate-btn").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
-  // 50 reps per sign instead of 2: not for the live matcher (which only
-  // ever needed a few examples to nudge its templates), but to build up a
-  // real per-sign-labeled dataset (see js/dataset.js) worth exporting for
-  // offline model training. Same review/redo/default-picker flow either
-  // way, just a lot more of it.
-  document.getElementById("build-dataset-btn").addEventListener("click", () => startCalibration(DATASET_CALIBRATION_REPS));
 
   const datasetProgressEl = document.getElementById("dataset-progress");
   const exportDatasetBtn = document.getElementById("export-dataset-btn");
@@ -590,67 +583,6 @@
     exportDatasetBtn.hidden = false;
   }
   exportDatasetBtn.addEventListener("click", () => CalibrationDataset.download());
-
-  // Restores an exported file after a reset (clearing site data, or just
-  // moving to a different browser) wipes localStorage -- and with it,
-  // every drawing and the progress pointer that told Build training set
-  // where to resume. Re-derives both from the imported drawings: the raw
-  // strokes go back into CalibrationDataset, any sign with a trainLabel
-  // also re-feeds the live $1 recognizer the same way drawing it fresh
-  // would, and the resume pointer is recomputed from the merged per-sign
-  // counts rather than trusted from the (now also-gone) saved pointer.
-  const importDatasetBtn = document.getElementById("import-dataset-btn");
-  const importDatasetInput = document.getElementById("import-dataset-input");
-  importDatasetBtn.addEventListener("click", () => importDatasetInput.click());
-  importDatasetInput.addEventListener("change", async () => {
-    const file = importDatasetInput.files[0];
-    importDatasetInput.value = "";
-    if (!file) return;
-    let payload;
-    try {
-      payload = JSON.parse(await file.text());
-    } catch {
-      alert("Couldn't read that file -- is it an exported training-data JSON?");
-      return;
-    }
-    const entries = Array.isArray(payload.entries) ? payload.entries : [];
-    if (entries.length === 0) {
-      alert("That file doesn't have any drawings in it.");
-      return;
-    }
-    if (!CalibrationDataset.addAll(entries)) {
-      alert("Storage is full -- couldn't import. Free up space (or clear old data) and try again.");
-      return;
-    }
-    for (const entry of entries) {
-      const trainLabel = SIGN_TRAIN_LABEL_OVERRIDE[entry.signId] || FAMILY_TRAIN_LABEL[entry.familyKey];
-      if (trainLabel) Training.save(entry.paths, trainLabel);
-    }
-    updateDatasetProgress();
-
-    // Resume is always derived fresh from CalibrationDataset (see
-    // computeCalibrationResumePoint), so importing more drawings into it
-    // is automatically reflected the next time calibration starts --
-    // nothing extra to write here. A live, already-running session is
-    // the one exception: it was handed its position at start time and
-    // won't re-check on its own, so it needs to be told directly or it
-    // just keeps showing wherever it already was.
-    const resumeAt = computeCalibrationResumePoint(DATASET_CALIBRATION_REPS);
-    if (calibration && calibration.mode === "draw" && resumeAt) {
-      calibrationRepCount = DATASET_CALIBRATION_REPS;
-      calibration.familyIndex = resumeAt.familyIndex;
-      calibration.signIndex = resumeAt.signIndex;
-      calibration.rep = resumeAt.rep;
-      renderCalibrationStep();
-    }
-    if (resumeAt) {
-      const resumeSignName = CALIBRATION_FAMILIES[resumeAt.familyIndex].signs[resumeAt.signIndex].name;
-      const verb = calibration && calibration.mode === "draw" ? "Jumped to" : "Build training set will resume from";
-      alert(`Imported ${entries.length} drawings. ${verb} ${resumeSignName} (${resumeAt.rep + 1} of ${DATASET_CALIBRATION_REPS}).`);
-    } else {
-      alert(`Imported ${entries.length} drawings -- every sign already has ${DATASET_CALIBRATION_REPS}+ examples.`);
-    }
-  });
 
   updateDatasetProgress();
 
