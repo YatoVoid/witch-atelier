@@ -361,11 +361,42 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const ringR = size * RING_RATIO;
   const mode = preset?.mode || "burst";
   const intensity = params.intensity * (preset?.intensityBoost || 1);
-  const count = mode === "beam" ? 16 : 26;
+  const focusRatio = params.focusRatio || 0;
+  const stabilityRatio = Math.min(1, params.stabilityRatio || 0);
+  const burstRatio = Math.min(1.5, params.burstRatio || 0);
+
+  // "Amount": Dispersion/Radial/Rain make the burst wider AND busier
+  // (more particles to actually fill the wider arc), Convergence/Window
+  // thin it back down toward a single tight jet, raw intensity (Crush,
+  // Enlarge, Bolt...) throws more material at the seal regardless of
+  // shape. Named-spell presets keep their own fixed count -- their motion
+  // is scripted, not sign-driven -- but still breathe a little with
+  // intensity so a stronger cast still reads as stronger.
+  const baseCount = mode === "beam" ? 16 : 26;
+  const signDrivenCount = mode === "burst" ? params.spreadRatio * 16 - focusRatio * 10 : 0;
+  const count = Math.round(Math.max(8, Math.min(46, baseCount + signDrivenCount + intensity * 4)));
+
   const style = sigil ? sigil.particle : { shape: "spark" };
   const colorRgb = sigil ? sigil.color : INK_RGB;
   const particleSize = 3 + Math.min(intensity, 2.5) * 1.4;
   const trailLength = 6;
+
+  // "Speed"/timing: Levitation/Float/Bird/Dancing Puppet (sustainRatio)
+  // hold a cast on screen longer, a slow steady release; Bolt (burstRatio)
+  // does the opposite, a short sharp snap that's mostly over before it's
+  // begun. Both fight over the same duration, sustain wins on a tie since
+  // it's the more common of the two in practice.
+  const durationScale = Math.max(0.55, Math.min(1.9, 1 + params.sustainRatio * 0.55 - burstRatio * 0.3));
+  const effectiveDuration = duration * durationScale;
+
+  // Diamond/Repetition/Eye/Vision (stabilityRatio) damp down the random
+  // per-particle variance -- a stabilized cast throws material in a
+  // steadier, more uniform stream instead of a scattershot one.
+  const wildness = 1 - stabilityRatio * 0.65;
+  // Bolt sharpens the deceleration curve -- particles are already near
+  // top speed at launch and dump it fast, instead of accelerating out
+  // smoothly across the whole animation.
+  const easePower = 2 + burstRatio * 2.5;
 
   const particles = Array.from({ length: count }, () => {
     let angle;
@@ -377,19 +408,24 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
     } else if (mode === "vortex" || mode === "orbit" || mode === "hover") {
       angle = Math.random() * Math.PI * 2;
     } else {
-      const spread = params.spreadRatio * Math.PI * 2 + 0.3;
+      // A directional cast that only barely resolved a direction (two
+      // Columns nearly, but not quite, canceling) sprays wider than one
+      // where every directional sign agreed -- params.magnitude is how
+      // much of the drawn force actually survived cancellation.
+      const disagreement = params.hasDirection ? (1 - params.magnitude) * 0.9 : 0;
+      const spread = Math.max(0.15, params.spreadRatio * Math.PI * 2 + 0.3 + disagreement - focusRatio * 0.9);
       const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
       angle = params.hasDirection ? baseAngle + (Math.random() - 0.5) * spread * 0.6 : Math.random() * Math.PI * 2;
     }
-    const speed = (0.4 + Math.random() * 0.6) * (0.5 + intensity);
+    const speed = (0.4 + Math.random() * 0.6 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4);
     const wobblePhase = Math.random() * Math.PI * 2;
     const spinDir = Math.random() < 0.5 ? -1 : 1;
-    return { angle, speed, offset: Math.random() * 0.35, wobblePhase, spinDir, trail: [] };
+    return { angle, speed, offset: Math.random() * 0.35 * wildness, wobblePhase, spinDir, trail: [] };
   });
 
   const start = performance.now();
   function frame(now) {
-    const t = Math.min(1, (now - start) / duration);
+    const t = Math.min(1, (now - start) / effectiveDuration);
     drawScene(ctx, size, sceneState);
     drawRingPulse(ctx, cx, cy, ringR, t, colorRgb);
     if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t, colorRgb);
@@ -398,7 +434,7 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
     particles.forEach((p) => {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);
       if (pt <= 0) return;
-      const eased = 1 - Math.pow(1 - pt, 2);
+      const eased = 1 - Math.pow(1 - pt, easePower);
       let x, y;
 
       if (mode === "vortex") {
@@ -420,7 +456,7 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         // Drifts a short distance and bobs, staying close to the seal
         // instead of launching -- lifted and held, not projected.
         const r = size * 0.14 * eased * p.speed;
-        const bob = Math.sin(pt * Math.PI * 2.4 + p.wobblePhase) * size * 0.03;
+        const bob = Math.sin(pt * Math.PI * 2.4 + p.wobblePhase) * size * 0.03 * wildness;
         x = cx + Math.cos(p.angle) * r;
         y = cy + Math.sin(p.angle) * r - bob - pt * size * 0.05;
       } else {
@@ -428,11 +464,25 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         // Flame's own buoyancy: a gentle upward bias blended on top of
         // wherever the cast is actually headed, not a replacement for it.
         const buoyancy = style.shape === "spark" ? -pt * size * 0.05 : 0;
-        const dist = eased * size * 0.42 * p.speed;
-        const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 : 0;
+        let dist = eased * size * 0.42 * p.speed;
+        // Convergence (focusRatio): the spray narrows back down as it
+        // travels instead of continuing to fan out, like it's being
+        // gathered rather than just released.
+        if (focusRatio > 0.1) dist *= 1 - Math.min(0.5, focusRatio * 0.4) * pt;
+        const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 * wildness : 0;
         const perp = p.angle + Math.PI / 2;
         x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
         y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity + buoyancy;
+        // Convergence on a directional cast also pulls stray particles
+        // back toward the center line as they age, not just shortening
+        // their reach -- a focused jet, not just a smaller scattershot.
+        if (focusRatio > 0.15 && params.hasDirection) {
+          const pull = Math.min(0.6, focusRatio * 0.5) * eased;
+          const lineX = cx + Math.cos(params.direction) * dist;
+          const lineY = cy + Math.sin(params.direction) * dist;
+          x = x * (1 - pull) + lineX * pull;
+          y = y * (1 - pull) + lineY * pull;
+        }
       }
 
       p.trail.push({ x, y });

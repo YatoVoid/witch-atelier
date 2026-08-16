@@ -40,6 +40,15 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const sustainRatio = netSustain / totalWeight;
   const intensity = acc.rawIntensity + acc.directional * 0.5 + acc.spread * 0.3 + acc.sustain * 0.2 + acc.burst * 0.5;
 
+  // Raw (not net-against-each-other) ratios for the signs that don't
+  // already feed spreadRatio/sustainRatio/intensity, so the cast animation
+  // can react to Convergence, Diamond/Repetition/Eye/Vision, and Bolt on
+  // their own terms instead of those signs only ever showing up as a
+  // subtraction from something else.
+  const focusRatio = acc.focus / totalWeight;
+  const stabilityRatio = acc.stability / totalWeight;
+  const burstRatio = acc.burst / totalWeight;
+
   // More Diamond signs make the ring more forgiving of a near-canceled push.
   const instabilityThreshold = Math.max(0.05, 0.15 - acc.stability * 0.04);
   const netsToZero = acc.directional > EPSILON && magnitude < instabilityThreshold;
@@ -73,6 +82,9 @@ function composeSpell({ sigilId, signs, ringComplete }) {
     magnitude,
     spreadRatio,
     sustainRatio,
+    focusRatio,
+    stabilityRatio,
+    burstRatio,
     intensity,
     hasDirection: acc.directional > EPSILON && !netsToZero,
     isRadiant,
@@ -99,7 +111,10 @@ function buildLabel(sigil, params, columnsCancel) {
   const parts = [sigil.name.toLowerCase()];
   parts.push(params.hasDirection ? `${Vector.compassLabel(params.direction)} direction` : "no directional bias");
   if (params.spreadRatio > 0.5) parts.push("wide spread");
+  if (params.focusRatio > 0.5) parts.push("tightly focused");
   if (params.sustainRatio > 0.5) parts.push("sustained");
+  if (params.burstRatio > 0.5) parts.push("sudden burst");
+  if (params.stabilityRatio > 0.5) parts.push("stabilized");
   if (params.intensity > 0.5) parts.push("high intensity");
   return parts.join(", ");
 }
