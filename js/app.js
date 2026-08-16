@@ -101,6 +101,7 @@
   let drawing = false;
   let rawPoints = []; // client-space points for the in-progress stroke
   let groupTimer = null;
+  let casting = false; // true for the duration of castEffect()'s animation, blocks new strokes
 
   function resizeCanvas() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -216,6 +217,12 @@
     // Awaiting Keep/Redo, or picking a family's default: the pending
     // stroke isn't resolved yet, so a new one can't start on top of it.
     if (calibration && calibration.mode !== "draw") return;
+    // The canvas is genuinely CSS-tilted in 3D while a cast plays (see
+    // #circle.casting in style.css) -- toLocal() maps pointer coordinates
+    // against the canvas's on-screen bounding box, which the tilt
+    // changes the shape of, so a stroke started mid-cast would land
+    // somewhere other than where the finger/cursor actually is.
+    if (casting) return;
     if (groupTimer) {
       clearTimeout(groupTimer);
       groupTimer = null;
@@ -790,13 +797,26 @@
   // ---- Cast: only fires with a closed ring ----
   const castBtn = document.getElementById("cast-btn");
   castBtn.addEventListener("click", () => {
-    if (!state.ringComplete) return;
+    if (!state.ringComplete || casting) return;
     const result = composeSpell(state);
     // A recognized named spell (Light Beam, Grasping Wind, ...) gets its
     // own cast motion instead of the generic direction/spread-driven
     // burst -- see js/data/castpresets.js for which ones and why.
     const preset = castPresetFor(matchSpell(state));
-    castEffect(canvas, size, result.params, result.sigil, state, 1000, preset);
+    // The tilt is a real CSS 3D transform on the canvas itself (see
+    // #circle.casting in style.css), not anything faked in render.js --
+    // toggled here for exactly the animation's duration, with drawing
+    // blocked meanwhile (see the `casting` guard on pointerdown) since a
+    // stroke started against a tilted bounding box would map to the
+    // wrong coordinates.
+    casting = true;
+    canvas.classList.add("casting");
+    castBtn.disabled = true;
+    castEffect(canvas, size, result.params, result.sigil, state, 1000, preset, () => {
+      casting = false;
+      canvas.classList.remove("casting");
+      castBtn.disabled = false;
+    });
   });
 
   // ---- Save / Grimoire ----

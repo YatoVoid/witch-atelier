@@ -7,24 +7,6 @@
 const INK = "#6c0000";
 const INK_RGB = "108, 0, 0";
 
-// The cast animation renders on a "tilted plate" instead of flat-on, the
-// way a circle drawn on a table reads as an ellipse once you look at the
-// table from an angle rather than straight down. Applied only inside
-// castEffect (the idle ring/drawing view stays flat -- toLocal() maps
-// pointer input against the untransformed canvas, so tilting anything
-// interactive would desync where a stroke lands from where the user's
-// finger actually is). PORTAL_SCALE_Y is how much a distance away from
-// the ring's own center gets foreshortened vertically to read as that
-// tilt; portalZLift (computed per cast in castEffect, see its own
-// comment) is a separate vertical lift for how far off the plate the
-// whole effect floats, greater for a soft/diffuse cast than a sharp,
-// decisive one.
-const PORTAL_SCALE_Y = 0.46;
-
-function projectPortal(cx, cy, x, y, zLiftPx) {
-  return { x, y: cy + (y - cy) * PORTAL_SCALE_Y - zLiftPx };
-}
-
 function strokePath(ctx, points, width) {
   if (points.length < 2) return;
   ctx.lineCap = "round";
@@ -150,19 +132,23 @@ function drawScene(ctx, size, state) {
 // tilt. tiltT now drives the squash AND the fade together on the same
 // 0->1->0 curve, so what's actually on screen is one ring smoothly
 // leaning back into the ellipse and level again, not a shape substitution.
+// The tilt itself is a real CSS 3D transform on the canvas element now
+// (see .circle-frame.casting in style.css), applied to the whole
+// rendered surface -- ring, sigil, drawn signs, and this pulse all tilt
+// together for free because the browser is actually perspective-
+// projecting the canvas's pixels, not because anything drawn here fakes
+// an ellipse. This just needs to be a normal circle.
 function drawRingPulse(ctx, cx, cy, ringR, t, colorRgb) {
-  const pulseT = Math.min(1, t / 0.6);
+  const pulseT = Math.min(1, t / 0.35);
   if (pulseT >= 1) return;
-  const tiltT = Math.sin(pulseT * Math.PI);
-  const scaleY = 1 - tiltT * (1 - PORTAL_SCALE_Y);
-  const r = ringR * (1 + tiltT * 0.12);
+  const ease = 1 - Math.pow(1 - pulseT, 2);
   ctx.save();
   ctx.shadowBlur = 0;
-  ctx.globalAlpha = tiltT * 0.6;
+  ctx.globalAlpha = (1 - pulseT) * 0.5;
   ctx.strokeStyle = `rgb(${colorRgb})`;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, r, r * scaleY, 0, 0, Math.PI * 2);
+  ctx.arc(cx, cy, ringR * (1 + ease * 0.12), 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -385,7 +371,19 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra, colorRgb) {
 // hover instead of launching. Everything else -- most casts, since most
 // sign combinations aren't a recognized named spell -- gets "burst", the
 // original direction/spread-aware behavior, unchanged.
-function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, preset = null) {
+//
+// Everything drawn in here is plain, flat, untilted canvas geometry --
+// the "tilted plate" look is a genuine CSS 3D transform on the canvas
+// element itself now (.circle-frame.casting in style.css, toggled by
+// app.js around this call), not anything faked here. That's deliberate:
+// an earlier version hand-projected just the ring pulse and particles
+// onto a fake ellipse, which left the ring/sigil/drawn signs (drawn
+// flat by drawScene, same as always) looking untilted right next to
+// them -- two different depths in the same frame. Letting the browser's
+// real perspective transform tilt the whole rendered canvas, ink and
+// particles together, doesn't have that seam, and doesn't require
+// hand-rolling a projection for every shape drawScene() can draw.
+function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, preset = null, onComplete = null) {
   const ctx = canvas.getContext("2d");
   const cx = size / 2;
   const cy = size / 2;
@@ -411,18 +409,6 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const colorRgb = sigil ? sigil.color : INK_RGB;
   const particleSize = 3 + Math.min(intensity, 2.5) * 1.4;
   const trailLength = 6;
-
-  // How far the whole effect floats up off the tilted plate (see
-  // PORTAL_SCALE_Y above): params.magnitude is already "how much of the
-  // drawn force survived cancellation," i.e. how decisive and singular a
-  // direction the signs actually agreed on, so it doubles as how much of
-  // the cast reads as a sharp blast across the plate (low lift, mostly
-  // in-plane) versus a soft, undirected puff drifting up off it (high
-  // lift). A cast with no resolved direction falls back to intensity for
-  // the same read -- a strong but directionless cast (Radial, say)
-  // shouldn't float any higher than a strong directional one does.
-  const portalStrength = params.hasDirection ? params.magnitude : Math.max(0, Math.min(1, intensity / 2));
-  const portalZLift = Math.cos(portalStrength * ((70 * Math.PI) / 180)) * size * 0.14;
 
   // "Speed"/timing: Levitation/Float/Bird/Dancing Puppet (sustainRatio)
   // hold a cast on screen longer, a slow steady release; Bolt (burstRatio)
@@ -528,17 +514,11 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         }
       }
 
-      // Trail history is kept in flat, untilted paper coordinates (same
-      // space every mode above computes x/y in) and only projected onto
-      // the tilted plate at draw time -- keeps the motion math itself
-      // (spirals, convergence pull, wobble...) unaware the plate is
-      // tilted at all, no more entangled to get right than it already was.
       p.trail.push({ x, y });
       if (p.trail.length > trailLength) p.trail.shift();
 
       const alpha = 1 - pt;
-      const projTrail = p.trail.map((pt2) => projectPortal(cx, cy, pt2.x, pt2.y, portalZLift));
-      drawTrail(ctx, projTrail, alpha, particleSize * 0.5, colorRgb);
+      drawTrail(ctx, p.trail, alpha, particleSize * 0.5, colorRgb);
 
       const extra = {
         flicker: Math.sin(now * 0.02 + p.wobblePhase) * 0.5 + 0.5,
@@ -548,14 +528,16 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         twinkleOffsetX: Math.cos(p.wobblePhase) * particleSize * 1.8,
         twinkleOffsetY: Math.sin(p.wobblePhase) * particleSize * 1.8,
       };
-      const proj = projectPortal(cx, cy, x, y, portalZLift);
-      drawParticle(ctx, style.shape, proj.x, proj.y, p.angle, alpha, particleSize, extra, colorRgb);
+      drawParticle(ctx, style.shape, x, y, p.angle, alpha, particleSize, extra, colorRgb);
     });
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
 
     if (t < 1) requestAnimationFrame(frame);
-    else drawScene(ctx, size, sceneState);
+    else {
+      drawScene(ctx, size, sceneState);
+      if (onComplete) onComplete();
+    }
   }
   requestAnimationFrame(frame);
 }

@@ -593,6 +593,22 @@ h2:first-child {
 #circle {
   touch-action: none;
   cursor: crosshair;
+  transition: transform 0.5s ease;
+}
+
+/* A real 3D transform, not a hand-drawn approximation -- toggled by
+   app.js for the duration of castEffect()'s animation (see its own
+   onComplete callback in render.js). Ring, sigil, drawn signs, and the
+   cast particles all tilt together because they're literally the same
+   canvas pixels; the browser handles the perspective projection, this
+   only has to say how far to tip it. Input is deliberately blocked
+   while this class is set (see the `casting` guard in app.js's
+   pointerdown handler) -- toLocal() maps pointer coordinates against
+   the canvas's on-screen bounding box, which a tilted transform changes
+   the shape of, so a stroke drawn mid-tilt would land in the wrong
+   place relative to what the finger/cursor is actually over. */
+#circle.casting {
+  transform: perspective(900px) rotateX(52deg);
 }
 
 #circle.placing {
