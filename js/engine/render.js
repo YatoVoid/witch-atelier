@@ -121,14 +121,14 @@ function drawScene(ctx, size, state) {
   }
 }
 
-function drawRingPulse(ctx, cx, cy, ringR, t) {
+function drawRingPulse(ctx, cx, cy, ringR, t, colorRgb) {
   const pulseT = Math.min(1, t / 0.35);
   if (pulseT >= 1) return;
   const ease = 1 - Math.pow(1 - pulseT, 2);
   ctx.save();
   ctx.shadowBlur = 0;
   ctx.globalAlpha = (1 - pulseT) * 0.5;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = `rgb(${colorRgb})`;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(cx, cy, ringR * (1 + ease * 0.12), 0, Math.PI * 2);
@@ -136,7 +136,7 @@ function drawRingPulse(ctx, cx, cy, ringR, t) {
   ctx.restore();
 }
 
-function drawSigilPulse(ctx, cx, cy, r, sigilId, t) {
+function drawSigilPulse(ctx, cx, cy, r, sigilId, t, colorRgb) {
   const pulseT = Math.min(1, t / 0.4);
   if (pulseT >= 1) return;
   const sigil = getSigil(sigilId);
@@ -146,15 +146,54 @@ function drawSigilPulse(ctx, cx, cy, r, sigilId, t) {
   const ease = Math.sin(pulseT * Math.PI);
   const rr = r * (1 + ease * 0.25);
   ctx.save();
+  // A soft elemental glow behind the sigil's own ink art, rather than
+  // just scaling the ink image up -- the image itself stays the one
+  // hand-drawn ink color (it's the caster's own glyph), the glow around
+  // it is what actually reads as "this element is active."
+  ctx.shadowColor = `rgba(${colorRgb}, 0.8)`;
+  ctx.shadowBlur = rr * 0.5;
   ctx.globalAlpha = ease * 0.6;
   ctx.drawImage(img, cx - rr, cy - rr, rr * 2, rr * 2);
   ctx.restore();
 }
 
+// A bold streak from center out along the resolved direction, layered
+// under the small particles, while they're still deciding among
+// themselves which way to go. Individual particles already carry
+// direction (their spread narrows toward params.direction), but that
+// only reads clearly once several of them have traveled a visible
+// distance; this makes "which way did this spell just go" obvious from
+// the first frame, for any cast that actually resolved a direction.
+function drawDirectionalSurge(ctx, cx, cy, size, angle, colorRgb, t) {
+  const surgeT = Math.min(1, t / 0.5);
+  if (surgeT >= 1) return;
+  const ease = 1 - Math.pow(1 - surgeT, 3);
+  const len = size * 0.4 * ease;
+  const fade = 1 - surgeT;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  const grad = ctx.createLinearGradient(0, 0, len, 0);
+  grad.addColorStop(0, `rgba(${colorRgb}, ${0.5 * fade})`);
+  grad.addColorStop(1, `rgba(${colorRgb}, 0)`);
+  ctx.fillStyle = grad;
+  ctx.shadowColor = `rgba(${colorRgb}, 0.6)`;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, -3 * fade);
+  ctx.lineTo(len, -1);
+  ctx.lineTo(len, 1);
+  ctx.lineTo(0, 3 * fade);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 // A fading comet trail behind a moving particle, drawn from its recent
 // positions instead of just a dot at the current one.
-function drawTrail(ctx, trail, baseAlpha, width) {
+function drawTrail(ctx, trail, baseAlpha, width, colorRgb) {
   if (trail.length < 2) return;
+  ctx.strokeStyle = `rgb(${colorRgb})`;
   for (let i = 1; i < trail.length; i++) {
     const a = trail[i - 1];
     const b = trail[i];
@@ -170,14 +209,21 @@ function drawTrail(ctx, trail, baseAlpha, width) {
 
 // Each element gets a distinct, organic shape instead of a generic dot or
 // rectangle, so a cast at least reads as an effect belonging to that
-// element, not an abstract particle system.
-function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
+// element, not an abstract particle system. colorRgb tints every shape
+// with its element's color (see js/data/sigils.js); extra.lifeT (0 at
+// birth, 1 at death) drives each shape's own end-of-life flourish -- a
+// glint, a splash, a twinkle -- instead of every particle just fading
+// out identically regardless of what it's supposed to be.
+function drawParticle(ctx, shape, x, y, angle, alpha, size, extra, colorRgb) {
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = INK;
-  ctx.strokeStyle = INK;
+  ctx.fillStyle = `rgb(${colorRgb})`;
+  ctx.strokeStyle = `rgb(${colorRgb})`;
   switch (shape) {
     case "spark": {
-      // A licking flame silhouette trailing behind the direction of travel.
+      // A licking flame silhouette trailing behind the direction of
+      // travel, biased to also drift upward (negative y) the way real
+      // flame buoyancy does, blended with wherever the cast is actually
+      // headed rather than replacing it.
       const back = angle + Math.PI;
       const len = size * 2.6 * (0.85 + (extra.flicker || 0) * 0.3);
       const perp = angle + Math.PI / 2;
@@ -194,6 +240,13 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.quadraticCurveTo(midX, midY, baseX, baseY);
       ctx.quadraticCurveTo(midX2, midY2, tipX, tipY);
       ctx.fill();
+      // A hotter, brighter core near the tip -- flame doesn't burn one
+      // flat color from base to tip.
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.fillStyle = `rgba(${colorRgb}, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, size * 0.4, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case "droplet": {
@@ -206,6 +259,17 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.quadraticCurveTo(-size * 0.9, size * 0.2, 0, -size * 1.3);
       ctx.fill();
       ctx.restore();
+      // A brief outward-ringing splash right at the end of the drop's
+      // life, instead of it simply blinking out.
+      if (extra.lifeT > 0.82) {
+        const splashT = (extra.lifeT - 0.82) / 0.18;
+        ctx.globalAlpha = alpha * (1 - splashT) * 0.6;
+        ctx.strokeStyle = `rgb(${colorRgb})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, size * (0.6 + splashT * 1.6), 0, Math.PI * 2);
+        ctx.stroke();
+      }
       break;
     }
     case "wisp": {
@@ -213,7 +277,7 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate((extra.spin || 0) + angle);
-      ctx.shadowColor = `rgba(${INK_RGB}, 0.4)`;
+      ctx.shadowColor = `rgba(${colorRgb}, 0.4)`;
       ctx.shadowBlur = size * 0.9;
       ctx.lineWidth = size * 0.55;
       ctx.beginPath();
@@ -233,6 +297,20 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.lineTo(-size * 0.7, size * 0.4);
       ctx.closePath();
       ctx.fill();
+      // A brief bright glint sweeping across the facet as it tumbles --
+      // real cut stone/crystal catches light unevenly, not as one flat
+      // silhouette the whole time it's moving.
+      const glint = Math.pow(Math.max(0, Math.sin((extra.spin || 0) * 2)), 6);
+      if (glint > 0.15) {
+        ctx.globalAlpha = alpha * glint;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.2, -size * 0.3);
+        ctx.lineTo(size * 0.5, -size * 0.05);
+        ctx.lineTo(size * 0.1, size * 0.3);
+        ctx.closePath();
+        ctx.fill();
+      }
       ctx.restore();
       break;
     }
@@ -240,7 +318,7 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.shadowColor = `rgba(${INK_RGB}, 0.45)`;
+      ctx.shadowColor = `rgba(${colorRgb}, 0.45)`;
       ctx.shadowBlur = size * 1.4;
       ctx.globalAlpha = alpha * 0.35;
       ctx.fillRect(-size * 2.2, -size * 0.5, size * 4.4, size);
@@ -248,6 +326,16 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
       ctx.globalAlpha = alpha;
       ctx.fillRect(-size * 2.2, -1, size * 4.4, 2);
       ctx.restore();
+      // A stray twinkle point beside the beam, on roughly a third of
+      // particles each frame -- light scatters, it doesn't travel as one
+      // clean unbroken line.
+      if (extra.twinkle) {
+        ctx.globalAlpha = alpha * extra.twinkle;
+        ctx.fillStyle = "rgba(255, 250, 230, 0.9)";
+        ctx.beginPath();
+        ctx.arc(x + extra.twinkleOffsetX, y + extra.twinkleOffsetY, size * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     }
     default: {
@@ -259,22 +347,41 @@ function drawParticle(ctx, shape, x, y, angle, alpha, size, extra) {
   ctx.globalAlpha = 1;
 }
 
-function castEffect(canvas, size, params, sigil, sceneState, duration = 1000) {
+// preset (see js/data/castpresets.js -- castPresetFor(result.match)) swaps
+// out the MOTION for the handful of named spells whose documented effect
+// doesn't look like a generic direction-aware radial burst: a beam that
+// only goes one way, a vortex that pulls inward, particles that orbit or
+// hover instead of launching. Everything else -- most casts, since most
+// sign combinations aren't a recognized named spell -- gets "burst", the
+// original direction/spread-aware behavior, unchanged.
+function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, preset = null) {
   const ctx = canvas.getContext("2d");
   const cx = size / 2;
   const cy = size / 2;
   const ringR = size * RING_RATIO;
-  const count = 26;
+  const mode = preset?.mode || "burst";
+  const intensity = params.intensity * (preset?.intensityBoost || 1);
+  const count = mode === "beam" ? 16 : 26;
   const style = sigil ? sigil.particle : { shape: "spark" };
-  const particleSize = 3 + Math.min(params.intensity, 2.5) * 1.4;
+  const colorRgb = sigil ? sigil.color : INK_RGB;
+  const particleSize = 3 + Math.min(intensity, 2.5) * 1.4;
   const trailLength = 6;
+
   const particles = Array.from({ length: count }, () => {
-    const spread = params.spreadRatio * Math.PI * 2 + 0.3;
-    const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
-    const angle = params.hasDirection
-      ? baseAngle + (Math.random() - 0.5) * spread * 0.6
-      : Math.random() * Math.PI * 2;
-    const speed = (0.4 + Math.random() * 0.6) * (0.5 + params.intensity);
+    let angle;
+    if (mode === "beam") {
+      // Narrow upward cone, ignoring drawn direction/spread -- Light
+      // Beam's own wiki entry is a single steady beam, not whichever way
+      // the four Columns that trigger it happen to average out to.
+      angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.35;
+    } else if (mode === "vortex" || mode === "orbit" || mode === "hover") {
+      angle = Math.random() * Math.PI * 2;
+    } else {
+      const spread = params.spreadRatio * Math.PI * 2 + 0.3;
+      const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
+      angle = params.hasDirection ? baseAngle + (Math.random() - 0.5) * spread * 0.6 : Math.random() * Math.PI * 2;
+    }
+    const speed = (0.4 + Math.random() * 0.6) * (0.5 + intensity);
     const wobblePhase = Math.random() * Math.PI * 2;
     const spinDir = Math.random() < 0.5 ? -1 : 1;
     return { angle, speed, offset: Math.random() * 0.35, wobblePhase, spinDir, trail: [] };
@@ -284,32 +391,65 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000) {
   function frame(now) {
     const t = Math.min(1, (now - start) / duration);
     drawScene(ctx, size, sceneState);
-    drawRingPulse(ctx, cx, cy, ringR, t);
-    if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t);
+    drawRingPulse(ctx, cx, cy, ringR, t, colorRgb);
+    if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t, colorRgb);
+    if (mode === "burst" && params.hasDirection) drawDirectionalSurge(ctx, cx, cy, size, params.direction, colorRgb, t);
 
     particles.forEach((p) => {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);
       if (pt <= 0) return;
       const eased = 1 - Math.pow(1 - pt, 2);
-      const gravity = style.shape === "droplet" ? pt * pt * size * 0.06 : 0;
-      const dist = eased * size * 0.42 * p.speed;
-      const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 : 0;
-      const perp = p.angle + Math.PI / 2;
-      const x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
-      const y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity;
+      let x, y;
+
+      if (mode === "vortex") {
+        // Spirals INTO center instead of radiating out -- particles
+        // start near the ring edge and wind inward as they age, for a
+        // spell whose whole point is pulling things toward the seal.
+        const r = ringR * (1 - eased) * (0.6 + p.speed * 0.5);
+        const spin = p.angle + pt * Math.PI * 3.2 * p.spinDir;
+        x = cx + Math.cos(spin) * r;
+        y = cy + Math.sin(spin) * r;
+      } else if (mode === "orbit") {
+        // Circles at roughly the ring's own radius rather than
+        // traveling outward -- held around the seal, not launched.
+        const r = ringR * (0.75 + Math.sin(pt * Math.PI) * 0.15);
+        const spin = p.angle + pt * Math.PI * 1.8 * p.spinDir;
+        x = cx + Math.cos(spin) * r;
+        y = cy + Math.sin(spin) * r;
+      } else if (mode === "hover") {
+        // Drifts a short distance and bobs, staying close to the seal
+        // instead of launching -- lifted and held, not projected.
+        const r = size * 0.14 * eased * p.speed;
+        const bob = Math.sin(pt * Math.PI * 2.4 + p.wobblePhase) * size * 0.03;
+        x = cx + Math.cos(p.angle) * r;
+        y = cy + Math.sin(p.angle) * r - bob - pt * size * 0.05;
+      } else {
+        const gravity = style.shape === "droplet" ? pt * pt * size * 0.06 : 0;
+        // Flame's own buoyancy: a gentle upward bias blended on top of
+        // wherever the cast is actually headed, not a replacement for it.
+        const buoyancy = style.shape === "spark" ? -pt * size * 0.05 : 0;
+        const dist = eased * size * 0.42 * p.speed;
+        const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 : 0;
+        const perp = p.angle + Math.PI / 2;
+        x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
+        y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity + buoyancy;
+      }
 
       p.trail.push({ x, y });
       if (p.trail.length > trailLength) p.trail.shift();
 
       const alpha = 1 - pt;
-      ctx.strokeStyle = INK;
-      drawTrail(ctx, p.trail, alpha, particleSize * 0.5);
+      drawTrail(ctx, p.trail, alpha, particleSize * 0.5, colorRgb);
 
       const extra = {
         flicker: Math.sin(now * 0.02 + p.wobblePhase) * 0.5 + 0.5,
         spin: p.spinDir * pt * Math.PI * 2.2,
+        lifeT: pt,
+        twinkle: style.shape === "beam" && Math.sin(now * 0.006 + p.wobblePhase * 3) > 0.6 ? 0.7 : 0,
+        twinkleOffsetX: Math.cos(p.wobblePhase) * particleSize * 1.8,
+        twinkleOffsetY: Math.sin(p.wobblePhase) * particleSize * 1.8,
       };
-      drawParticle(ctx, style.shape, x, y, p.angle, alpha, particleSize, extra);
+      drawParticle(ctx, style.shape, x, y, p.angle, alpha, particleSize, extra, colorRgb);
     });
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;

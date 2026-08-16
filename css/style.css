@@ -266,6 +266,21 @@ h2:first-child {
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.8rem 0.3rem 0.3rem;
+  /* --sigil-color is each element's own "r, g, b" (set inline per chip
+     in app.js, from js/data/sigils.js) -- a resting tint on the border
+     so the element picker reads as color-coded at a glance, not just a
+     row of identical outlined pills until you read the label. */
+  border-color: rgba(var(--sigil-color, 20, 18, 15), 0.45);
+}
+
+.chip-image:hover {
+  border-color: rgb(var(--sigil-color, 20, 18, 15));
+  background: rgba(var(--sigil-color, 20, 18, 15), 0.08);
+}
+
+.chip-image.active {
+  border-color: rgb(var(--sigil-color, 20, 18, 15));
+  background: rgb(var(--sigil-color, 20, 18, 15));
 }
 
 .chip-image img {
@@ -274,6 +289,7 @@ h2:first-child {
   object-fit: contain;
   background: var(--paper);
   border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(var(--sigil-color, 20, 18, 15), 0.5);
 }
 
 .hint {

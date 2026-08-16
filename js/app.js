@@ -154,6 +154,11 @@
     const btn = document.createElement("button");
     btn.className = "chip chip-image";
     btn.dataset.sigil = sigil.id;
+    // Each element's own color (see js/data/sigils.js), read by
+    // .chip-image's border/background rules in style.css -- makes the
+    // element picker itself color-coded instead of every chip looking
+    // identical until you read the label.
+    btn.style.setProperty("--sigil-color", sigil.color);
     const img = document.createElement("img");
     img.src = sigil.image;
     img.alt = "";
@@ -786,7 +791,11 @@
   castBtn.addEventListener("click", () => {
     if (!state.ringComplete) return;
     const result = composeSpell(state);
-    castEffect(canvas, size, result.params, result.sigil, state);
+    // A recognized named spell (Light Beam, Grasping Wind, ...) gets its
+    // own cast motion instead of the generic direction/spread-driven
+    // burst -- see js/data/castpresets.js for which ones and why.
+    const preset = castPresetFor(matchSpell(state));
+    castEffect(canvas, size, result.params, result.sigil, state, 1000, preset);
   });
 
   // ---- Save / Grimoire ----
