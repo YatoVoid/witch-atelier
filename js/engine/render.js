@@ -394,6 +394,28 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const stabilityRatio = Math.min(1, params.stabilityRatio || 0);
   const burstRatio = Math.min(1.5, params.burstRatio || 0);
 
+  // A handful of signs get their own distinct form or motion on top of
+  // the shared burst math below, instead of only ever showing up as a
+  // number that scales count/speed/spread. params.signWeights (see
+  // compose.js) is how much of the total drawn length any one archetype
+  // was, 0..1, regardless of family -- picked out here by hand, one at a
+  // time, for the signs whose own description (see js/data/signs.js)
+  // points at something visually distinct rather than "changes strength
+  // only": Bird flies, Rain falls, Billowing puffs out soft and slow,
+  // Weave stretches into a long flexible ribbon, Crosshair locks onto a
+  // single precise line, Diamond facets the burst into a crystalline
+  // pattern instead of a random scatter. Not every sign needs this --
+  // most of the 24 are already well served by the shared spread/focus/
+  // sustain/burst system above, this is only for the ones a shared
+  // number can't really capture.
+  const sw = params.signWeights || {};
+  const birdW = sw.bird || 0;
+  const rainW = sw.rain || 0;
+  const billowingW = sw.billowing || 0;
+  const weaveW = sw.weave || 0;
+  const crosshairW = sw.crosshair || 0;
+  const diamondW = sw.diamond || 0;
+
   // "Amount": Dispersion/Radial/Rain make the burst wider AND busier
   // (more particles to actually fill the wider arc), Convergence/Window
   // thin it back down toward a single tight jet, raw intensity (Crush,
@@ -407,8 +429,12 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
 
   const style = sigil ? sigil.particle : { shape: "spark" };
   const colorRgb = sigil ? sigil.color : INK_RGB;
-  const particleSize = 3 + Math.min(intensity, 2.5) * 1.4;
-  const trailLength = 6;
+  // Billowing: "expands material into a soft, lasting volume" -- bigger,
+  // softer-reading particles instead of the usual sharp scatter.
+  const particleSize = (3 + Math.min(intensity, 2.5) * 1.4) * (1 + billowingW * 0.55);
+  // Weave: "stretches material long and flexible" -- a much longer
+  // trail reads as a ribbon instead of a comet's short streak.
+  const trailLength = Math.round(6 + weaveW * 12);
 
   // "Speed"/timing: Levitation/Float/Bird/Dancing Puppet (sustainRatio)
   // hold a cast on screen longer, a slow steady release; Bolt (burstRatio)
@@ -425,7 +451,9 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   // Bolt sharpens the deceleration curve -- particles are already near
   // top speed at launch and dump it fast, instead of accelerating out
   // smoothly across the whole animation.
-  const easePower = 2 + burstRatio * 2.5;
+  // Billowing softens the deceleration curve too -- material puffing
+  // outward slows into place gradually instead of snapping to a stop.
+  const easePower = Math.max(1.15, 2 + burstRatio * 2.5 - billowingW * 1.1);
 
   const particles = Array.from({ length: count }, () => {
     let angle;
@@ -442,11 +470,30 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
       // where every directional sign agreed -- params.magnitude is how
       // much of the drawn force actually survived cancellation.
       const disagreement = params.hasDirection ? (1 - params.magnitude) * 0.9 : 0;
-      const spread = Math.max(0.15, params.spreadRatio * Math.PI * 2 + 0.3 + disagreement - focusRatio * 0.9);
+      let spread = Math.max(0.15, params.spreadRatio * Math.PI * 2 + 0.3 + disagreement - focusRatio * 0.9);
+      // Crosshair: "aims the effect at whatever it points toward" -- a
+      // locked-on single line instead of a spray, the cone narrows
+      // toward zero as more of the drawing was Crosshair specifically.
+      spread *= 1 - crosshairW * 0.85;
       const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
       angle = params.hasDirection ? baseAngle + (Math.random() - 0.5) * spread * 0.6 : Math.random() * Math.PI * 2;
+      // Rain: "scatters the effect down over an area" -- bends the spray
+      // toward straight down (positive y) instead of wherever the drawn
+      // direction happened to point, blended rather than replaced so a
+      // Rain sign paired with a real direction still leans that way.
+      if (rainW > 0.1) angle = angle * (1 - rainW * 0.6) + (Math.PI / 2) * (rainW * 0.6);
+      // Diamond: "marks the boundary of the effect" -- snaps the spawn
+      // angle toward the nearest of 6 facets instead of a free scatter,
+      // reading as a faceted, crystalline burst rather than a spray.
+      if (diamondW > 0.12) {
+        const facetStep = (Math.PI * 2) / 6;
+        const facet = Math.round(angle / facetStep) * facetStep;
+        angle = angle * (1 - diamondW) + facet * diamondW;
+      }
     }
-    const speed = (0.65 + Math.random() * 0.75 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4);
+    // Crosshair also travels faster than a generic push -- a shot, not a
+    // spray, gets there quicker.
+    const speed = (0.65 + Math.random() * 0.75 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4) * (1 + crosshairW * 0.5);
     const wobblePhase = Math.random() * Math.PI * 2;
     const spinDir = Math.random() < 0.5 ? -1 : 1;
     return { angle, speed, offset: Math.random() * 0.35 * wildness, wobblePhase, spinDir, trail: [] };
@@ -489,7 +536,10 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         x = cx + Math.cos(p.angle) * r;
         y = cy + Math.sin(p.angle) * r - bob - pt * size * 0.05;
       } else {
-        const gravity = style.shape === "droplet" ? pt * pt * size * 0.06 : 0;
+        // Rain adds its own downward pull on top of a droplet's usual
+        // one, and applies regardless of which element/shape is casting
+        // it -- a fire spark falling like rain still falls.
+        const gravity = (style.shape === "droplet" ? pt * pt * size * 0.06 : 0) + pt * pt * size * 0.05 * rainW;
         // Flame's own buoyancy: a gentle upward bias blended on top of
         // wherever the cast is actually headed, not a replacement for it.
         const buoyancy = style.shape === "spark" ? -pt * size * 0.05 : 0;
@@ -503,10 +553,24 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         // travels instead of continuing to fan out, like it's being
         // gathered rather than just released.
         if (focusRatio > 0.1) dist *= 1 - Math.min(0.5, focusRatio * 0.4) * pt;
-        const wobble = style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 * wildness : 0;
+        // Weave adds its own slow, wide side-to-side braid on top of a
+        // wisp's usual tighter wobble -- material crossing back and
+        // forth over its own path instead of traveling straight.
+        const wobble =
+          (style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 * wildness : 0) +
+          (weaveW > 0.1 ? Math.sin(pt * Math.PI * 2 + p.wobblePhase) * size * 0.05 * weaveW : 0);
         const perp = p.angle + Math.PI / 2;
         x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
         y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity + buoyancy;
+        // Bird: "animates flight" -- a single lazy arc across the whole
+        // flight instead of a straight line, like a wing beat's rise and
+        // fall rather than a launch. spinDir picks which way it banks so
+        // a spray of Bird particles doesn't all swoop identically.
+        if (birdW > 0.1) {
+          const swoop = Math.sin(pt * Math.PI) * size * 0.14 * birdW * p.spinDir;
+          x += Math.cos(perp) * swoop;
+          y += Math.sin(perp) * swoop;
+        }
         // Convergence on a directional cast also pulls stray particles
         // back toward the center line as they age, not just shortening
         // their reach -- a focused jet, not just a smaller scattershot.

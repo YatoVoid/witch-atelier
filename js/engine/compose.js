@@ -20,6 +20,7 @@ function composeSpell({ sigilId, signs, ringComplete }) {
     stability: 0,
     burst: 0,
     totalLength: 0,
+    byArchetype: {},
   };
 
   for (const instance of signs) {
@@ -27,6 +28,7 @@ function composeSpell({ sigilId, signs, ringComplete }) {
     if (!archetype) continue;
     archetype.contribute(acc, instance);
     acc.totalLength += instance.length;
+    acc.byArchetype[instance.archetypeId] = (acc.byArchetype[instance.archetypeId] || 0) + instance.length;
   }
 
   const netMagnitude = Vector.magnitude(acc.forceX, acc.forceY);
@@ -48,6 +50,16 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const focusRatio = acc.focus / totalWeight;
   const stabilityRatio = acc.stability / totalWeight;
   const burstRatio = acc.burst / totalWeight;
+
+  // How much of the drawing was any one specific archetype, 0..1 of
+  // totalWeight, e.g. signWeights.bird. Generic and unopinionated on
+  // purpose: this file's job is composing numbers, not deciding what a
+  // given sign should look like animated. That decision lives in
+  // render.js, which reads whichever of these it wants for a sign it's
+  // giving its own distinct motion or form (see castEffect's own
+  // comments for which ones and why).
+  const signWeights = {};
+  for (const id in acc.byArchetype) signWeights[id] = acc.byArchetype[id] / totalWeight;
 
   // More Diamond signs make the ring more forgiving of a near-canceled push.
   const instabilityThreshold = Math.max(0.05, 0.15 - acc.stability * 0.04);
@@ -85,6 +97,7 @@ function composeSpell({ sigilId, signs, ringComplete }) {
     focusRatio,
     stabilityRatio,
     burstRatio,
+    signWeights,
     intensity,
     hasDirection: acc.directional > EPSILON && !netsToZero,
     isRadiant,
