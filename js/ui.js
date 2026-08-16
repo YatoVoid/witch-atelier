@@ -25,10 +25,12 @@
   activate("circle");
 })();
 
-// Collapsible section headings (currently just the Shape guide, which runs
-// to 24 rows and pushed the rest of the page down far enough that reaching
-// the spellbook meant scrolling past all of it every time). Remembered
-// across reloads the same way the grimoire already persists to localStorage.
+// Collapsible section headings (currently just the Shape guide). The list
+// itself is capped and independently scrollable (see .shape-guide in
+// style.css) so reaching the spellbook below it no longer depends on this
+// being collapsed -- this toggle is just for hiding it outright if it's in
+// the way. Remembered across reloads the same way the grimoire already
+// persists to localStorage.
 (function () {
   const toggles = document.querySelectorAll(".collapsible-heading");
   toggles.forEach((toggle) => {

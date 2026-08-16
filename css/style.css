@@ -318,6 +318,27 @@ h2:first-child {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  /* Capped and independently scrollable instead of running all 24 rows
+     out in full: on desktop the three workbench panels share one grid
+     row, so this list's own height was what decided the whole row's
+     height, and the spellbook section (a sibling below the whole
+     workbench) sat however far down that pushed it -- reachable only by
+     scrolling past every sign or collapsing this list first. Bounding
+     it keeps the spellbook a short, constant scroll away regardless of
+     whether this list is expanded, so getting to it stops requiring the
+     collapse toggle at all; every sign is still there, just a small
+     scroll within its own list instead of the page's.
+  */
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5rem 0.5rem 0.5rem 0.6rem;
+  background: var(--paper);
+}
+
+.shape-guide-row:last-child {
+  border-bottom: none;
 }
 
 .shape-guide-row {
