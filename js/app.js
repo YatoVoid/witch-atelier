@@ -804,19 +804,28 @@
     // burst -- see js/data/castpresets.js for which ones and why.
     const preset = castPresetFor(matchSpell(state));
     // The tilt is a real CSS 3D transform on the canvas itself (see
-    // #circle.casting in style.css), not anything faked in render.js --
-    // toggled here for exactly the animation's duration, with drawing
-    // blocked meanwhile (see the `casting` guard on pointerdown) since a
-    // stroke started against a tilted bounding box would map to the
-    // wrong coordinates.
+    // #circle.casting in style.css), not anything faked in render.js.
+    // Sequenced rather than started together: the plate tilts back
+    // first, THEN the effect fires once it's actually settled into
+    // position, THEN the plate levels back out only once the effect is
+    // done -- starting the burst mid-tilt (or leveling out while it was
+    // still playing) looked like the two were racing each other instead
+    // of one following the other. TILT_MS has to match the #circle.casting
+    // transition duration in style.css, there's no DOM event fired here
+    // that ties them together automatically.
+    const TILT_MS = 500;
     casting = true;
     canvas.classList.add("casting");
     castBtn.disabled = true;
-    castEffect(canvas, size, result.params, result.sigil, state, 1000, preset, () => {
-      casting = false;
-      canvas.classList.remove("casting");
-      castBtn.disabled = false;
-    });
+    setTimeout(() => {
+      castEffect(canvas, size, result.params, result.sigil, state, 1000, preset, () => {
+        canvas.classList.remove("casting");
+        setTimeout(() => {
+          casting = false;
+          castBtn.disabled = false;
+        }, TILT_MS);
+      });
+    }, TILT_MS);
   });
 
   // ---- Save / Grimoire ----

@@ -14,7 +14,7 @@ Nothing is pre-selected before you draw. Draw a stroke anywhere on the circle an
 
 ![A drawn sign and its resolved reading in the side panel](assets/screenshots/drawn-spell.png)
 
-![Casting a spell: the ring tilts into perspective and the effect fires](assets/screenshots/cast-demo.gif)
+![Casting Grasping Wind: three Pull signs around a wind sigil, the ring tilts into perspective, then the vortex fires](assets/screenshots/cast-demo.gif)
 
 - 8 elements, 24 signs. No shape is hardcoded to one element or one spell.
 - Recognizes drawn signs from their geometry alone. No server call, no model file.
