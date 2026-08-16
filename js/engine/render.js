@@ -206,6 +206,45 @@ function drawDirectionalSurge(ctx, cx, cy, size, angle, colorRgb, t) {
   ctx.restore();
 }
 
+// Window: "frames a bounded opening for the effect" -- a rectangle
+// outline (a window, a frame, not the circular/organic shapes everything
+// else here draws) fading in and back out early in the cast, sized by
+// how much of the drawing was actually Window.
+function drawWindowFrame(ctx, cx, cy, size, t, colorRgb, strength) {
+  const openT = Math.min(1, t / 0.4);
+  if (openT >= 1) return;
+  const ease = Math.sin(openT * Math.PI);
+  const w = size * (0.22 + strength * 0.12);
+  const h = w * 0.72;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = ease * Math.min(1, strength * 2) * 0.55;
+  ctx.strokeStyle = `rgb(${colorRgb})`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+  ctx.restore();
+}
+
+// Vision: "scrying, not force" -- a couple of thin rings expanding
+// outward from the seal like ripples on a scrying pool, distinct from
+// Eye's own read on the same "not force" idea (Eye just barely moves at
+// all, see perceiveW above; Vision looks outward instead).
+function drawVisionRipple(ctx, cx, cy, size, t, colorRgb, strength) {
+  for (let i = 0; i < 2; i++) {
+    const rt = (t - i * 0.18) / 0.5;
+    if (rt < 0 || rt >= 1) continue;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = (1 - rt) * 0.4 * Math.min(1, strength * 1.5);
+    ctx.strokeStyle = `rgb(${colorRgb})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.16 * rt, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // A fading comet trail behind a moving particle, drawn from its recent
 // positions instead of just a dot at the current one.
 function drawTrail(ctx, trail, baseAlpha, width, colorRgb) {
@@ -401,15 +440,23 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   // was, 0..1, regardless of family -- picked out here by hand, one at a
   // time, for the signs whose own description (see js/data/signs.js)
   // points at something visually distinct rather than "changes strength
-  // only": Bird flies, Rain falls, Billowing puffs out soft and slow,
-  // Weave stretches into a long flexible ribbon, Crosshair locks onto a
-  // single precise line, Diamond facets the burst into a crystalline
-  // pattern instead of a random scatter, Repetition echoes/renews
-  // instead of firing once, Collection gathers scattered material in
-  // toward the seal instead of launching outward. Not every sign needs
-  // this -- most of the 24 are already well served by the shared
-  // spread/focus/sustain/burst system above, this is only for the ones
-  // a shared number can't really capture.
+  // only":
+  //   Bird flies, Rain falls, Billowing puffs out soft and slow, Weave
+  //   stretches into a long flexible ribbon, Bend fractures the path
+  //   into a rough crack instead of flowing, Crosshair locks onto a
+  //   single precise line, Diamond facets the burst into a crystalline
+  //   pattern, Window frames the effect in an actual rectangle, Vision
+  //   ripples outward like a scrying pool, Repetition echoes/renews
+  //   instead of firing once, Dancing Puppet strings every particle
+  //   back to the seal, Collection gathers scattered material in toward
+  //   the seal instead of launching outward, Levitation holds in place
+  //   and barely travels, Float lifts gently instead, Eye barely moves
+  //   at all ("perception, not force").
+  // Not every sign needs this -- Column/Pull/Direction/Dispersion/
+  // Radial/Convergence/Enlarge/Crush/Bolt are already well served by
+  // the shared direction/spread/focus/sustain/burst system below and
+  // their own descriptions don't point at anything beyond it. This is
+  // only for the ones a shared number can't really capture.
   const sw = params.signWeights || {};
   const birdW = sw.bird || 0;
   const rainW = sw.rain || 0;
@@ -419,6 +466,13 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const diamondW = sw.diamond || 0;
   const repetitionW = sw.repetition || 0;
   const collectionW = sw.collection || 0;
+  const windowW = sw.window || 0;
+  const bendW = sw.bend || 0;
+  const levitationW = sw.levitation || 0;
+  const floatW = sw.float || 0;
+  const dancingPuppetW = sw["dancing-puppet"] || 0;
+  const eyeW = sw.eye || 0;
+  const visionW = sw.vision || 0;
 
   // "Amount": Dispersion/Radial/Rain make the burst wider AND busier
   // (more particles to actually fill the wider arc), Convergence/Window
@@ -530,6 +584,8 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
     }
     if (sceneState.sigilId) drawSigilPulse(ctx, cx, cy, ringR * 0.28, sceneState.sigilId, t, colorRgb);
     if (mode === "burst" && params.hasDirection) drawDirectionalSurge(ctx, cx, cy, size, params.direction, colorRgb, t);
+    if (windowW > 0.15) drawWindowFrame(ctx, cx, cy, size, t, colorRgb, windowW);
+    if (visionW > 0.15) drawVisionRipple(ctx, cx, cy, size, t, colorRgb, visionW);
 
     particles.forEach((p) => {
       const pt = Math.max(0, t - p.offset) / (1 - p.offset);
@@ -577,15 +633,35 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         // travels instead of continuing to fan out, like it's being
         // gathered rather than just released.
         if (focusRatio > 0.1) dist *= 1 - Math.min(0.5, focusRatio * 0.4) * pt;
+        // Levitation/Float: "holds the effect in place" -- cuts the
+        // travel distance itself, not just the animation's timing
+        // (sustainRatio already stretches that, see effectiveDuration
+        // above), so this reads as held near the seal spatially, not
+        // just a slower playback of the same launch.
+        const holdW = Math.min(1, levitationW + floatW);
+        if (holdW > 0.15) dist *= 1 - Math.min(0.55, holdW * 0.45);
+        // Eye/Vision: "perception, not force" -- barely travels at all,
+        // it isn't throwing anything.
+        const perceiveW = Math.min(1, eyeW + visionW);
+        if (perceiveW > 0.15) dist *= 1 - Math.min(0.7, perceiveW * 0.6);
         // Weave adds its own slow, wide side-to-side braid on top of a
         // wisp's usual tighter wobble -- material crossing back and
         // forth over its own path instead of traveling straight.
+        // Bend adds a rough, high-frequency crack instead -- broken
+        // rather than flowing, "breaks things apart" read as the path
+        // itself fracturing rather than staying smooth.
         const wobble =
           (style.shape === "wisp" ? Math.sin(pt * Math.PI * 3 + p.wobblePhase) * 6 * wildness : 0) +
-          (weaveW > 0.1 ? Math.sin(pt * Math.PI * 2 + p.wobblePhase) * size * 0.05 * weaveW : 0);
+          (weaveW > 0.1 ? Math.sin(pt * Math.PI * 2 + p.wobblePhase) * size * 0.05 * weaveW : 0) +
+          (bendW > 0.1 ? (Math.sin(pt * 41 + p.wobblePhase * 11) + Math.sin(pt * 67 + p.wobblePhase * 5)) * size * 0.02 * bendW : 0);
         const perp = p.angle + Math.PI / 2;
         x = cx + Math.cos(p.angle) * dist + Math.cos(perp) * wobble;
         y = cy + Math.sin(p.angle) * dist + Math.sin(perp) * wobble + gravity + buoyancy;
+        // Levitation holds steady in place (a faint held bob); Float
+        // lifts instead, "gentler, steadier LIFT than Levitation" read
+        // as the one direction Levitation itself doesn't commit to.
+        if (levitationW > 0.15) y -= Math.sin(pt * Math.PI * 2.2 + p.wobblePhase) * size * 0.015 * levitationW;
+        if (floatW > 0.15) y -= pt * size * 0.05 * floatW;
         // Bird: "animates flight" -- a genuine rise-then-glide arc (an
         // actual lift, independent of whatever direction the particle
         // is otherwise headed, not just a sideways wobble along its
@@ -600,13 +676,30 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
           x += Math.cos(perp) * bank;
           y += Math.sin(perp) * bank;
         }
+        // Convergence on a directional cast also pulls stray particles
+        // back toward the center line as they age, not just shortening
+        // their reach -- a focused jet, not just a smaller scattershot.
+        // Collection has its own, more specific version of this same
+        // idea just below, so this steps aside once Collection is doing
+        // enough of the drawing to matter -- both blending toward
+        // wherever this block leaves x/y would have diluted Collection's
+        // own gather into something that barely read as different from
+        // a plain focused burst, which is exactly what was reported.
+        if (focusRatio > 0.15 && params.hasDirection && collectionW < 0.3) {
+          const pull = Math.min(0.6, focusRatio * 0.5) * eased;
+          const lineX = cx + Math.cos(params.direction) * dist;
+          const lineY = cy + Math.sin(params.direction) * dist;
+          x = x * (1 - pull) + lineX * pull;
+          y = y * (1 - pull) + lineY * pull;
+        }
         // Collection: "gathers material from around the seal inward" --
         // blends the particle's position toward a point on the ring
         // (gatherAngle, picked once at creation) that shrinks toward
         // center as the cast plays, instead of the plain burst's launch
-        // from center outward. At collectionW near 1 this replaces the
-        // burst motion almost entirely; blended for a cast that mixes
-        // Collection with other directional signs.
+        // from center outward. Applied last, after every other
+        // adjustment above, so at collectionW near 1 it's the one that
+        // actually wins instead of getting overwritten by something
+        // generic that ran after it.
         if (collectionW > 0.1) {
           const gatherR = ringR * (1 - eased);
           const gx = cx + Math.cos(p.gatherAngle) * gatherR;
@@ -614,22 +707,27 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
           x = x * (1 - collectionW) + gx * collectionW;
           y = y * (1 - collectionW) + gy * collectionW;
         }
-        // Convergence on a directional cast also pulls stray particles
-        // back toward the center line as they age, not just shortening
-        // their reach -- a focused jet, not just a smaller scattershot.
-        if (focusRatio > 0.15 && params.hasDirection) {
-          const pull = Math.min(0.6, focusRatio * 0.5) * eased;
-          const lineX = cx + Math.cos(params.direction) * dist;
-          const lineY = cy + Math.sin(params.direction) * dist;
-          x = x * (1 - pull) + lineX * pull;
-          y = y * (1 - pull) + lineY * pull;
-        }
       }
 
       p.trail.push({ x, y });
       if (p.trail.length > trailLength) p.trail.shift();
 
       const alpha = 1 - pt;
+      // Dancing Puppet: "lets the caster control what it's drawn on
+      // directly" -- a faint line back to the seal on every particle,
+      // like a marionette string, instead of material that's simply
+      // released to drift on its own.
+      if (dancingPuppetW > 0.15) {
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.22 * dancingPuppetW;
+        ctx.strokeStyle = `rgb(${colorRgb})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.restore();
+      }
       drawTrail(ctx, p.trail, alpha, particleSize * 0.5, colorRgb);
 
       const extra = {
