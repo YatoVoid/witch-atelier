@@ -7,6 +7,24 @@
 const INK = "#6c0000";
 const INK_RGB = "108, 0, 0";
 
+// The cast animation renders on a "tilted plate" instead of flat-on, the
+// way a circle drawn on a table reads as an ellipse once you look at the
+// table from an angle rather than straight down. Applied only inside
+// castEffect (the idle ring/drawing view stays flat -- toLocal() maps
+// pointer input against the untransformed canvas, so tilting anything
+// interactive would desync where a stroke lands from where the user's
+// finger actually is). PORTAL_SCALE_Y is how much a distance away from
+// the ring's own center gets foreshortened vertically to read as that
+// tilt; portalZLift (computed per cast in castEffect, see its own
+// comment) is a separate vertical lift for how far off the plate the
+// whole effect floats, greater for a soft/diffuse cast than a sharp,
+// decisive one.
+const PORTAL_SCALE_Y = 0.46;
+
+function projectPortal(cx, cy, x, y, zLiftPx) {
+  return { x, y: cy + (y - cy) * PORTAL_SCALE_Y - zLiftPx };
+}
+
 function strokePath(ctx, points, width) {
   if (points.length < 2) return;
   ctx.lineCap = "round";
@@ -121,17 +139,22 @@ function drawScene(ctx, size, state) {
   }
 }
 
+// Drawn as an ellipse (ctx.ellipse with two radii, not ctx.arc scaled via
+// ctx.scale) specifically so the stroke stays an even width all the way
+// around -- scaling the context non-uniformly scales lineWidth with it,
+// leaving a ring that's thick on the sides and thin top-to-bottom.
 function drawRingPulse(ctx, cx, cy, ringR, t, colorRgb) {
   const pulseT = Math.min(1, t / 0.35);
   if (pulseT >= 1) return;
   const ease = 1 - Math.pow(1 - pulseT, 2);
+  const r = ringR * (1 + ease * 0.12);
   ctx.save();
   ctx.shadowBlur = 0;
   ctx.globalAlpha = (1 - pulseT) * 0.5;
   ctx.strokeStyle = `rgb(${colorRgb})`;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.arc(cx, cy, ringR * (1 + ease * 0.12), 0, Math.PI * 2);
+  ctx.ellipse(cx, cy, r, r * PORTAL_SCALE_Y, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -381,6 +404,18 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
   const particleSize = 3 + Math.min(intensity, 2.5) * 1.4;
   const trailLength = 6;
 
+  // How far the whole effect floats up off the tilted plate (see
+  // PORTAL_SCALE_Y above): params.magnitude is already "how much of the
+  // drawn force survived cancellation," i.e. how decisive and singular a
+  // direction the signs actually agreed on, so it doubles as how much of
+  // the cast reads as a sharp blast across the plate (low lift, mostly
+  // in-plane) versus a soft, undirected puff drifting up off it (high
+  // lift). A cast with no resolved direction falls back to intensity for
+  // the same read -- a strong but directionless cast (Radial, say)
+  // shouldn't float any higher than a strong directional one does.
+  const portalStrength = params.hasDirection ? params.magnitude : Math.max(0, Math.min(1, intensity / 2));
+  const portalZLift = Math.cos(portalStrength * ((70 * Math.PI) / 180)) * size * 0.14;
+
   // "Speed"/timing: Levitation/Float/Bird/Dancing Puppet (sustainRatio)
   // hold a cast on screen longer, a slow steady release; Bolt (burstRatio)
   // does the opposite, a short sharp snap that's mostly over before it's
@@ -485,11 +520,17 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         }
       }
 
+      // Trail history is kept in flat, untilted paper coordinates (same
+      // space every mode above computes x/y in) and only projected onto
+      // the tilted plate at draw time -- keeps the motion math itself
+      // (spirals, convergence pull, wobble...) unaware the plate is
+      // tilted at all, no more entangled to get right than it already was.
       p.trail.push({ x, y });
       if (p.trail.length > trailLength) p.trail.shift();
 
       const alpha = 1 - pt;
-      drawTrail(ctx, p.trail, alpha, particleSize * 0.5, colorRgb);
+      const projTrail = p.trail.map((pt2) => projectPortal(cx, cy, pt2.x, pt2.y, portalZLift));
+      drawTrail(ctx, projTrail, alpha, particleSize * 0.5, colorRgb);
 
       const extra = {
         flicker: Math.sin(now * 0.02 + p.wobblePhase) * 0.5 + 0.5,
@@ -499,7 +540,8 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         twinkleOffsetX: Math.cos(p.wobblePhase) * particleSize * 1.8,
         twinkleOffsetY: Math.sin(p.wobblePhase) * particleSize * 1.8,
       };
-      drawParticle(ctx, style.shape, x, y, p.angle, alpha, particleSize, extra, colorRgb);
+      const proj = projectPortal(cx, cy, x, y, portalZLift);
+      drawParticle(ctx, style.shape, proj.x, proj.y, p.angle, alpha, particleSize, extra, colorRgb);
     });
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
