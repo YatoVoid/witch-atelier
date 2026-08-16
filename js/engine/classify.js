@@ -301,15 +301,42 @@ function matchShapeTemplate(rawPoints, extraTemplates) {
 // True if 3+ strokes converge on a shared point (a crosshair-style hub).
 // Requires 3+ specifically because a plain corner or zigzag only ever
 // joins 2 strokes.
+//
+// Real hand-drawn decorated signs (Pull's spine + small triangle +
+// connector + arrowhead, Repetition's own multi-part glyph) exposed a
+// false-positive here: the radius used to scale off the single longest
+// stroke's own path length ("* 0.3"), which is fine for a genuine hub
+// (Crosshair's arms are all comparably long, so that's close to the
+// glyph's actual size), but wildly oversized for an asymmetric decorated
+// glyph -- a 300px spine with 20-100px decorations gets a 90px radius
+// applied to a glyph whose whole footprint might only span 100-150px, at
+// which point nearly every stroke's endpoint reads as "close enough" to
+// nearly every other one, regardless of whether they're actually a
+// radiating hub or just a sequential chain of parts. Scaling off the
+// bounding box's own diagonal (the glyph's actual footprint) instead,
+// with a much tighter fraction, keeps the radius meaningful relative to
+// the shape actually drawn: real Crosshair data still clears it,
+// real Pull/Repetition data (measured directly) mostly no longer does.
 function radiatesFromSharedHub(strokes) {
   if (strokes.length < 3) return false;
   const endpoints = strokes.map((s) => [s[0], s[s.length - 1]]);
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const s of strokes) {
+    for (const p of s) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+  const boundingDiag = Math.hypot(maxX - minX, maxY - minY);
+  const radius = Math.max(15, boundingDiag * 0.1);
   let bestHubSize = 0;
   for (let i = 0; i < endpoints.length; i++) {
     for (const anchor of endpoints[i]) {
-      let scale = 0;
-      for (const s of strokes) scale = Math.max(scale, strokeLength(s));
-      const radius = Math.max(15, scale * 0.3);
       let hubSize = 0;
       for (let j = 0; j < endpoints.length; j++) {
         const closeEnough = endpoints[j].some((p) => Math.hypot(p.x - anchor.x, p.y - anchor.y) <= radius);
@@ -329,6 +356,7 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // sharp-cornered outline (Diamond) would otherwise look identical to a
   // zigzag or a chaotic scribble to the shape matcher below.
   const overallSpine = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
+  const totalStrokeLength = valid.reduce((sum, p) => sum + strokeLength(p), 0);
   // A fixed sample count regardless of size meant a small closed shape got
   // sampled at much tighter spacing (proportionally) than a large one,
   // making a few px of hand tremor a far bigger fraction of the gap
@@ -362,7 +390,19 @@ function classifyStrokeGroup(paths, extraTemplates) {
   // even under heavy hand tremor, closer than the tightest a folded-back
   // peak ever gets by coincidence. 0.82 sits in the gap measured between
   // the two (peak tops out under 0.80, Diamond stays above 0.85).
-  const closedShape = loopClosure > 0.82 && strokeLength(spinePoints) > boundSize * 0.7;
+  // Real hand-drawn decorated signs exposed a gap here: a multi-part
+  // glyph (Pull's spine + small triangle + connector + arrowhead) can
+  // have its single longest stroke be a decoration -- an arrowhead is
+  // itself a small near-closed V or triangle -- rather than the spine,
+  // with none of the parts anywhere near a majority of the ink (measured
+  // at 36-52% for real Pull drawings, well under the 0.65 dominance bar
+  // used everywhere else in this function for exactly this reason: a
+  // decoration shouldn't be able to speak for the whole gesture). Without
+  // requiring dominance here too, that one decorative stroke's own
+  // closedness got read as the WHOLE sign being closed, misreading a
+  // genuinely open multi-part sign as Diamond or Crush.
+  const overallSpineDominant = strokeLength(overallSpine) / totalStrokeLength > 0.65;
+  const closedShape = overallSpineDominant && loopClosure > 0.82 && strokeLength(spinePoints) > boundSize * 0.7;
   // A real diamond measures ~2-3 sharp turns here even under hand jitter;
   // a chaotic scribble runs 7+.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
@@ -384,7 +424,6 @@ function classifyStrokeGroup(paths, extraTemplates) {
     return { x: sx / slice.length, y: sy / slice.length };
   }
   const mainStroke = valid.reduce((a, b) => (strokeLength(b) > strokeLength(a) ? b : a));
-  const totalStrokeLength = valid.reduce((sum, p) => sum + strokeLength(p), 0);
   const overallStart = averagedEndpoint(mainStroke, false);
   const overallEnd = averagedEndpoint(mainStroke, true);
   // Distance-from-center of end vs start: a straightforward and correct
@@ -470,6 +509,15 @@ function classifyStrokeGroup(paths, extraTemplates) {
     if (radiatesFromSharedHub(valid)) return "crosshair";
     return directionalDelta >= 0 ? "column" : "pull";
   }
-  if (match.label === "wavy") return "levitation";
+  // "levitation" here (instead of "float", the wavy family's actual
+  // default per SIGN_BUCKETS) was a leftover from before Levitation's own
+  // glyph -- a plain straight arrow -- got reassigned out of the wavy
+  // family into straightOut. Every genuinely wavy-shaped stroke was
+  // coming back labeled with a straightOut archetype ever since, a
+  // silent family mismatch real hand-drawn data (Float/Dancing Puppet/
+  // Vision all reading as straightOut instead of wavy) caught that no
+  // amount of synthetic testing had, since synthetic tests only ever
+  // checked the label string, not which family it actually belonged to.
+  if (match.label === "wavy") return "float";
   return match.label; // "bend" or "bolt"
 }

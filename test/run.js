@@ -160,7 +160,7 @@ for (const { label, ox, oy } of positions) {
   check(`zigzag/bolt @ ${label}`, classifyStrokeGroup([zigzag(ox, oy, 90, 5)]), "bolt");
 
   // wavy: tight wiggle that loops back near its start
-  check(`wavy @ ${label}`, classifyStrokeGroup([wavyWiggle(ox, oy, 22)]), "levitation");
+  check(`wavy @ ${label}`, classifyStrokeGroup([wavyWiggle(ox, oy, 22)]), "float");
 
   // closed smooth -> diamond
   check(`closedSmooth @ ${label}`, classifyStrokeGroup([realDiamond(ox, oy, 45)]), "diamond");
