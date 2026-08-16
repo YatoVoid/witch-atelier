@@ -552,6 +552,15 @@ const STROKE_COUNT_OVERRIDES = {
     { min: 4, max: 4, id: "billowing" },
     { min: 13, max: 16, id: "rain" },
   ],
+  // Collection is documented as always exactly 1 stroke, which doesn't
+  // overlap Window's 3-6 -- but Convergence's own count was never given
+  // (it's this family's shape default, not a promotion target), and
+  // this repo's existing test data treats a plain single-stroke inward
+  // sweep as the normal way to draw Convergence itself. A count==1 rule
+  // for Collection was tried and reverted: it broke every ordinary
+  // Convergence case, which is a real, common gesture, in exchange for
+  // correctly catching Collection, which is rarer. Left out until
+  // Convergence's own count is confirmed as reliably more than 1.
   wideIn: [{ min: 3, max: 6, id: "window" }],
   wavy: [
     { min: 4, max: 4, id: "vision" },
