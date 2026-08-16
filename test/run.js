@@ -608,6 +608,45 @@ check("closedSmooth count 5 promotes diamond to repetition", refineByStrokeCount
 check("crush (closedChaotic) is untouched, different family bucket", refineByStrokeCount("crush", 5), "crush");
 check("pull (sole member of its family) is untouched", refineByStrokeCount("pull", 5), "pull");
 
+// ---- 8. a many-stroke drawing can never come back labeled Diamond or
+// Crush, whose combined range (1-5 strokes total between all of
+// closedSmooth/closedChaotic) makes that a physical impossibility.
+// Regression test for a real reported bug: a long dominant stroke that
+// happens to curl back near its own start (satisfying the closed-loop
+// check in isolation) dragged the WHOLE sign down that branch on its
+// shape alone, misreading a 13-stroke drawing (which fits nothing but
+// Rain, 13-16) as a 1-4-stroke Diamond -- an answer the stroke count
+// alone already disproves, regardless of how closed any one stroke in
+// it looks. ----
+function shortLine(x0, y0, x1, y1, n = 6) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push({ x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t });
+  }
+  return pts;
+}
+function manyStrokesWithLoopyDominant(count) {
+  const dominant = [];
+  const n = 30;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const a = t * Math.PI * 1.9; // most of a full circle, not quite closed
+    dominant.push({ x: 100 * Math.cos(a), y: 100 * Math.sin(a) });
+  }
+  const paths = [dominant];
+  for (let i = 0; i < count - 1; i++) {
+    const a = (i / (count - 1)) * Math.PI * 2;
+    const ox = Math.cos(a) * 130, oy = Math.sin(a) * 130;
+    paths.push(shortLine(ox, oy, ox + 8, oy + 8));
+  }
+  return paths;
+}
+const rainLikeResult = classifyStrokeGroup(manyStrokesWithLoopyDominant(13));
+check("a 13-stroke drawing with a self-closing dominant stroke is not Diamond", rainLikeResult !== "diamond", true);
+check("a 13-stroke drawing with a self-closing dominant stroke is not Crush", rainLikeResult !== "crush", true);
+check("...and actually resolves to Rain, the only sign 13 strokes fits", rainLikeResult, "rain");
+
 // ---- report ----
 console.log(`\n${pass} passed, ${fail} failed`);
 if (failures.length) {

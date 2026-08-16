@@ -402,7 +402,19 @@ function classifyShapeFamily(paths, extraTemplates) {
   // closedness got read as the WHOLE sign being closed, misreading a
   // genuinely open multi-part sign as Diamond or Crush.
   const overallSpineDominant = strokeLength(overallSpine) / totalStrokeLength > 0.65;
-  const closedShape = overallSpineDominant && loopClosure > 0.82 && strokeLength(spinePoints) > boundSize * 0.7;
+  // Diamond/Repetition/Eye/Crush -- everything this branch can return --
+  // top out at 5 strokes total between all four of them (see
+  // SIGN_STROKE_RANGE below). A drawing with more strokes than that is
+  // structurally incapable of being one of these, no matter how closed
+  // its own single dominant stroke happens to look in isolation.
+  // Without this bound, a long first stroke in an otherwise many-stroke
+  // sign (Rain, say: one sweeping motion plus a dozen small drops) that
+  // happens to curl back near its own start took the ENTIRE sign down
+  // this branch on that one stroke's shape alone, misreading a 13-stroke
+  // drawing as a 1-4-stroke Diamond -- exactly the kind of answer the
+  // stroke count makes provably impossible.
+  const plausibleStrokeCount = valid.length <= 5;
+  const closedShape = plausibleStrokeCount && overallSpineDominant && loopClosure > 0.82 && strokeLength(spinePoints) > boundSize * 0.7;
   // A real diamond measures ~2-3 sharp turns here even under hand jitter;
   // a chaotic scribble runs 7+.
   if (closedShape) return sharpTurnCount(spinePoints, ZIGZAG_ANGLE) <= 5 ? "diamond" : "crush";
