@@ -96,6 +96,62 @@
     localStorage.setItem(PREFERRED_DEFAULT_KEY, JSON.stringify(prefs));
   }
 
+  // How many separate strokes THIS user tends to draw a given sign with,
+  // learned from calibration reps rather than asked for directly.
+  // CalibrationDataset already stores every kept rep's raw paths per
+  // sign (see keepCalibrationRep below), so paths.length across those
+  // reps already is exactly that -- no new storage, no new calibration
+  // step, just reading data that was already being collected. The mode
+  // (most repeated count) is used rather than an average, since a
+  // fractional "2.4 strokes" wouldn't mean anything to compare against a
+  // live drawing's actual, integer count.
+  function personalStrokeCountProfile() {
+    const bySign = {};
+    for (const entry of CalibrationDataset.list()) {
+      (bySign[entry.signId] ||= []).push(entry.paths.length);
+    }
+    const profile = {};
+    for (const signId in bySign) {
+      const counts = bySign[signId];
+      const freq = {};
+      for (const c of counts) freq[c] = (freq[c] || 0) + 1;
+      let best = counts[0];
+      for (const c in freq) {
+        if (freq[c] > freq[best] || (freq[c] === freq[best] && Number(c) < best)) best = Number(c);
+      }
+      profile[signId] = best;
+    }
+    return profile;
+  }
+
+  // Column and Levitation both list a valid 2-stroke drawing in the
+  // source material, so the canon min/max table in classify.js can't
+  // tell them apart at count 2 and correctly doesn't try. But if THIS
+  // user's own calibration reps show Column always lands on 2 strokes
+  // and Levitation always lands on 3, that ambiguity doesn't exist for
+  // them specifically -- a live drawing that comes in at exactly 2 or
+  // exactly 3 strokes has an unambiguous personal answer, even though
+  // the shared canon range never could. Only trusted on an exact match:
+  // picking whichever calibrated member's mode count is merely closest
+  // to what was drawn, with no exact hit, would just be guessing with
+  // extra steps.
+  function refineByPersonalStrokeCount(detectedArchetypeId, strokeCount) {
+    const candidates = bucketCandidates(detectedArchetypeId);
+    if (candidates.length <= 1) return detectedArchetypeId;
+    const profile = personalStrokeCountProfile();
+    let best = null;
+    let bestDist = Infinity;
+    for (const id of candidates) {
+      if (!(id in profile)) continue;
+      const dist = Math.abs(profile[id] - strokeCount);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = id;
+      }
+    }
+    return best !== null && bestDist === 0 ? best : detectedArchetypeId;
+  }
+
   const GROUP_WINDOW_MS = 1400; // pause this long to lock in a multi-part sign
 
   let drawing = false;
@@ -272,16 +328,23 @@
     }
 
     const detectedArchetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
-    // Swap in a preferred default for this family if one's been taught,
-    // e.g. Bend instead of Direction -- see PREFERRED_DEFAULT_KEY above.
-    // bucketCandidates() re-derives the same family the detected id is
-    // already in, so this can only ever substitute within it, never
-    // change what family (and therefore what effect) the sign resolves to.
-    const preferredDefaults = getPreferredDefaults();
-    const family = familyKeyOf(detectedArchetypeId);
-    const preferred = family && preferredDefaults[family];
-    const archetypeId =
-      preferred && bucketCandidates(detectedArchetypeId).includes(preferred) ? preferred : detectedArchetypeId;
+    // Personal stroke-count habit (see refineByPersonalStrokeCount above)
+    // wins first where it has a confident, exact answer -- it's a
+    // per-drawing signal, more specific than a single flat preference for
+    // the whole family. Falls through to the flat preferred default (e.g.
+    // Bend instead of Direction -- see PREFERRED_DEFAULT_KEY above) only
+    // when it doesn't have one. bucketCandidates() re-derives the same
+    // family the detected id is already in either way, so neither of
+    // these can change what family (and therefore what effect) the sign
+    // resolves to, only which member within it.
+    const personalMatch = refineByPersonalStrokeCount(detectedArchetypeId, groupPaths.length);
+    let archetypeId = personalMatch;
+    if (personalMatch === detectedArchetypeId) {
+      const preferredDefaults = getPreferredDefaults();
+      const family = familyKeyOf(detectedArchetypeId);
+      const preferred = family && preferredDefaults[family];
+      if (preferred && bucketCandidates(detectedArchetypeId).includes(preferred)) archetypeId = preferred;
+    }
     const spine = groupPaths.reduce((a, b) => (pathLength(b) > pathLength(a) ? b : a));
     const start = spine[0];
     const end = spine[spine.length - 1];
