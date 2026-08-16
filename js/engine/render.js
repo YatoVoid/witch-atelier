@@ -185,7 +185,7 @@ function drawDirectionalSurge(ctx, cx, cy, size, angle, colorRgb, t) {
   const surgeT = Math.min(1, t / 0.5);
   if (surgeT >= 1) return;
   const ease = 1 - Math.pow(1 - surgeT, 3);
-  const len = size * 0.4 * ease;
+  const len = size * 0.55 * ease;
   const fade = 1 - surgeT;
   ctx.save();
   ctx.translate(cx, cy);
@@ -446,7 +446,7 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
       const baseAngle = params.hasDirection ? params.direction : Math.random() * Math.PI * 2;
       angle = params.hasDirection ? baseAngle + (Math.random() - 0.5) * spread * 0.6 : Math.random() * Math.PI * 2;
     }
-    const speed = (0.4 + Math.random() * 0.6 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4);
+    const speed = (0.65 + Math.random() * 0.75 * wildness) * (0.5 + intensity) * (1 + burstRatio * 0.4);
     const wobblePhase = Math.random() * Math.PI * 2;
     const spinDir = Math.random() < 0.5 ? -1 : 1;
     return { angle, speed, offset: Math.random() * 0.35 * wildness, wobblePhase, spinDir, trail: [] };
@@ -493,7 +493,12 @@ function castEffect(canvas, size, params, sigil, sceneState, duration = 1000, pr
         // Flame's own buoyancy: a gentle upward bias blended on top of
         // wherever the cast is actually headed, not a replacement for it.
         const buoyancy = style.shape === "spark" ? -pt * size * 0.05 : 0;
-        let dist = eased * size * 0.42 * p.speed;
+        // Was capped at 0.42 -- at a typical (not extreme) intensity that
+        // never even reached the ring edge, every burst stayed clustered
+        // near the seal instead of launching. Raised enough that a
+        // decent cast now visibly clears the ring, with a strong one
+        // flying well past it off the edge of the plate.
+        let dist = eased * size * 0.78 * p.speed;
         // Convergence (focusRatio): the spray narrows back down as it
         // travels instead of continuing to fan out, like it's being
         // gathered rather than just released.
