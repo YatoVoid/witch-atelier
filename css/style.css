@@ -401,14 +401,23 @@ h2:first-child {
 /* Faint reference glyph shown during calibration so the sign being traced
    doesn't require checking the shape guide separately. Sits behind the
    canvas's own strokes; ignores pointer events so it never blocks drawing.
-   Sized to sit inside the ring itself (RING_RATIO * 2 = 64% of the frame,
-   see js/engine/constants.js), not the whole frame -- oversized against
-   the ring it's meant to guide tracing within was worse than no guide. */
+   Offset into the upper-right of the ring rather than centered on it: a
+   centered overlay made every traced stroke run symmetrically through
+   the ring's exact center, which real collected data showed breaks
+   Column/Pull's outward-vs-inward detection outright (it compares
+   distance from ring center at the stroke's start vs end -- start and
+   end of a line straddling dead center are, by construction, roughly
+   equidistant from it, a coin flip the real data landed on "inward" for
+   nearly every example). A real sign is never drawn straddling exact
+   center either; offsetting the trace target to match fixes calibration
+   data quality for every direction-sensitive family going forward, not
+   just Column/Pull specifically. */
 .calibration-overlay {
   position: absolute;
-  inset: 24%;
-  width: 52%;
-  height: 52%;
+  top: 18%;
+  left: 52%;
+  width: 30%;
+  height: 30%;
   object-fit: contain;
   opacity: 0.22;
   pointer-events: none;
