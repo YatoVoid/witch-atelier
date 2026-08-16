@@ -400,21 +400,24 @@ h2:first-child {
 /* Faint reference glyph shown during calibration so the sign being traced
    doesn't require checking the shape guide separately. Sits behind the
    canvas's own strokes; ignores pointer events so it never blocks drawing.
-   Offset into the upper-right of the ring rather than centered on it: a
-   centered overlay made every traced stroke run symmetrically through
-   the ring's exact center, which real collected data showed breaks
-   Column/Pull's outward-vs-inward detection outright (it compares
-   distance from ring center at the stroke's start vs end -- start and
-   end of a line straddling dead center are, by construction, roughly
-   equidistant from it, a coin flip the real data landed on "inward" for
-   nearly every example). A real sign is never drawn straddling exact
-   center either; offsetting the trace target to match fixes calibration
-   data quality for every direction-sensitive family going forward, not
-   just Column/Pull specifically. */
+   A dead-center overlay makes every traced stroke run symmetrically
+   through the ring's exact origin, and start/end distance-from-center is
+   exactly what classify.js uses to read push vs pull (and sweep vs
+   crush) -- straddling dead center makes that a coin flip. This used to
+   be fixed by shoving the whole glyph into the upper-right corner, which
+   worked but looked broken, like the reference image had lost track of
+   where the ring was. A small vertical-only nudge is enough to break the
+   exact symmetry classify.js is sensitive to (its start-point radial
+   projection only gets unstable right at the origin, not anywhere near
+   it) while keeping the glyph reading as centered on the ring the way a
+   real sigil normally does. Recognition of what the user actually drew
+   is unaffected either way -- classify.js measures every stroke against
+   the ring's true center regardless of where the reference glyph sat,
+   the same as it does for any sign drawn with no overlay at all. */
 .calibration-overlay {
   position: absolute;
-  top: 18%;
-  left: 52%;
+  top: 42%;
+  left: 35%;
   width: 30%;
   height: 30%;
   object-fit: contain;
