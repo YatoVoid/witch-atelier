@@ -195,6 +195,18 @@
   // A sign can be one or more strokes; after a stroke ends there's a short
   // pause during which another stroke counts as part of the same sign.
   // Once that pause elapses, the group classifies and locks in (classify.js).
+  //
+  // Each point passes through a One Euro Filter (js/engine/smoothing.js)
+  // before it's stored or drawn: a fingertip resting mid-stroke jitters
+  // by a few px even when the person means to hold still or move in a
+  // straight line, and that noise was going straight into the geometry
+  // classify.js measures (loop closure, sharp-turn counts, hub-detection
+  // radius). The filter is speed-adaptive, not a fixed smoothing window --
+  // slow movement gets smoothed hard, a fast deliberate corner barely at
+  // all -- so a genuine sharp turn drawn at normal speed survives while
+  // low-speed tremor gets absorbed. Reset per stroke (not per sign) so a
+  // pause between a multi-stroke sign's parts doesn't smear across strokes.
+  let strokeSmoother = null;
   canvas.addEventListener("pointerdown", (e) => {
     // Awaiting Keep/Redo, or picking a family's default: the pending
     // stroke isn't resolved yet, so a new one can't start on top of it.
@@ -205,14 +217,15 @@
     }
     drawing = true;
     canvas.setPointerCapture(e.pointerId);
-    rawPoints = [toLocal(e.clientX, e.clientY)];
+    strokeSmoother = createStrokeSmoother();
+    rawPoints = [strokeSmoother(toLocal(e.clientX, e.clientY), e.timeStamp)];
     state.livePath = rawPoints;
     render();
   });
 
   canvas.addEventListener("pointermove", (e) => {
     if (!drawing) return;
-    const p = toLocal(e.clientX, e.clientY);
+    const p = strokeSmoother(toLocal(e.clientX, e.clientY), e.timeStamp);
     const last = rawPoints[rawPoints.length - 1];
     if (Math.hypot(p.x - last.x, p.y - last.y) < 2) return; // skip near-duplicate points
     rawPoints.push(p);
