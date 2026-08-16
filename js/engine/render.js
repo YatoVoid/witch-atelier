@@ -143,18 +143,26 @@ function drawScene(ctx, size, state) {
 // ctx.scale) specifically so the stroke stays an even width all the way
 // around -- scaling the context non-uniformly scales lineWidth with it,
 // leaving a ring that's thick on the sides and thin top-to-bottom.
+// Started out popping in already flattened into the portal ellipse, held
+// for a fraction of a second, then vanished -- with the persistent (true
+// circular) ring drawn underneath every frame regardless, that read as
+// two different ring shapes swapping in and out, a glitch rather than a
+// tilt. tiltT now drives the squash AND the fade together on the same
+// 0->1->0 curve, so what's actually on screen is one ring smoothly
+// leaning back into the ellipse and level again, not a shape substitution.
 function drawRingPulse(ctx, cx, cy, ringR, t, colorRgb) {
-  const pulseT = Math.min(1, t / 0.35);
+  const pulseT = Math.min(1, t / 0.6);
   if (pulseT >= 1) return;
-  const ease = 1 - Math.pow(1 - pulseT, 2);
-  const r = ringR * (1 + ease * 0.12);
+  const tiltT = Math.sin(pulseT * Math.PI);
+  const scaleY = 1 - tiltT * (1 - PORTAL_SCALE_Y);
+  const r = ringR * (1 + tiltT * 0.12);
   ctx.save();
   ctx.shadowBlur = 0;
-  ctx.globalAlpha = (1 - pulseT) * 0.5;
+  ctx.globalAlpha = tiltT * 0.6;
   ctx.strokeStyle = `rgb(${colorRgb})`;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, r, r * PORTAL_SCALE_Y, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy, r, r * scaleY, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
