@@ -1,4 +1,4 @@
-# Atelier
+# Atelier: a Witch Hat Atelier spell circle workbench
 
 A spell circle workbench in the style of Witch Hat Atelier's magic system. Pick an element, draw signs freehand anywhere on the circle, close the ring, and read what the composition resolves to.
 

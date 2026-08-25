@@ -162,6 +162,12 @@ h2:first-child {
   margin: 0;
 }
 
+.fan-notice {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  margin: 0.6rem 0 0;
+}
+
 .workbench {
   display: grid;
   grid-template-columns: 1fr;
@@ -1038,6 +1044,23 @@ h2:first-child {
   color: var(--ink-soft);
   text-decoration: none;
   border-bottom: 1px dashed var(--ink-soft);
+}
+
+.footer-note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0 0 0.9rem;
+}
+
+.footer-note a {
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+  border-bottom: 1px dashed var(--ink-soft);
+}
+
+.footer-note a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
 .site-footer a:hover {
