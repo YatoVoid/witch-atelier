@@ -1,14 +1,4 @@
-// Element definitions. image points at the user's own drawn reconstruction
-// of the canon glyph (assets/sigils/), rendered on the canvas via drawImage
-// in engine/render.js. Adding a new element means adding one entry here and
-// an image at that path, nothing else changes.
-//
-// color is an "r, g, b" string (matches render.js's INK_RGB format) used
-// only for the CAST animation and the sigil chip's UI accent -- the
-// drawn ring, signs, and sigil glyph itself stay the one ink color
-// regardless of element, since that's the caster's own handwriting, not
-// the magic. Chosen muted rather than saturated, so a cast still reads
-// as "this app's ink-and-parchment style," not a cartoon palette swap.
+// Element definitions.
 const SIGILS = [
   { id: "fire", name: "Fire", substance: "heat", image: "assets/sigils/fire.webp", color: "196, 74, 20", particle: { shape: "spark" } },
   { id: "water", name: "Water", substance: "flow", image: "assets/sigils/water.webp", color: "31, 97, 141", particle: { shape: "droplet" } },

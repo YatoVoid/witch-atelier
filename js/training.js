@@ -1,6 +1,6 @@
-// Personal shape-template corrections, saved to localStorage and layered
-// on top of the shipped SHAPE_TEMPLATES in js/data/templates.js (see
-// classify.js's matchShapeTemplate) rather than editing that file.
+// Personal shape-template corrections, saved to localStorage and layered on top of the shipped
+// SHAPE_TEMPLATES in js/data/templates.js (see classify.js's matchShapeTemplate) rather than
+// editing that file.
 const TRAINING_KEY = "witch-atelier:training";
 
 const Training = {
@@ -12,14 +12,7 @@ const Training = {
     }
   },
 
-  // paths: the raw multi-stroke points a sign was drawn with. label: a
-  // shape category classify.js's matcher understands (straight, bend,
-  // bolt, wavy). A crosshair-style hub is saved one arm per entry instead
-  // of flattened into one polyline, since concatenating arms that don't
-  // share an exact pixel would read as a false corner.
-  // Returns true/false rather than throwing -- see CalibrationDataset.add's
-  // comment in js/dataset.js for why an uncaught quota error here is worse
-  // than just losing this one save.
+  // paths: the raw multi-stroke points a sign was drawn with.
   save(paths, label) {
     const entries = Training.list();
     const groups = paths.length >= 3 && radiatesFromSharedHub(paths) ? paths.map((p) => [p]) : [paths];

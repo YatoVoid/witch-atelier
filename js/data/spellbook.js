@@ -1,7 +1,4 @@
-// Reference gallery of named canon spells, drawn by hand. Descriptions are
-// only included where the wiki documents the actual composition or effect,
-// confirmed during research for this project. The rest show name and image
-// only rather than a guessed description.
+// Reference gallery of named canon spells, drawn by hand.
 const SPELLBOOK = [
   { name: "Advanced Beastwarding", image: "assets/spells/advanced-beastwarding.webp", description: null },
   { name: "Amplification Scroll", image: "assets/spells/amplification-scroll.webp", description: null },

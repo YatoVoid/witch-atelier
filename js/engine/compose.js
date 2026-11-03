@@ -1,5 +1,4 @@
-// Resolves a placed sigil + signs into effect parameters. Pure function.
-// No rendering or storage here, this is the part that has to be honest.
+// Resolves a placed sigil + signs into effect parameters.
 const EPSILON = 1e-6;
 const DIRECTIONAL_FAMILIES = ["straightOut", "straightIn"];
 
@@ -42,22 +41,14 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const sustainRatio = netSustain / totalWeight;
   const intensity = acc.rawIntensity + acc.directional * 0.5 + acc.spread * 0.3 + acc.sustain * 0.2 + acc.burst * 0.5;
 
-  // Raw (not net-against-each-other) ratios for the signs that don't
-  // already feed spreadRatio/sustainRatio/intensity, so the cast animation
-  // can react to Convergence, Diamond/Repetition/Eye/Vision, and Bolt on
-  // their own terms instead of those signs only ever showing up as a
-  // subtraction from something else.
+  // Raw (not net-against-each-other) ratios for the signs that don't already feed
+  // spreadRatio/sustainRatio/intensity.
   const focusRatio = acc.focus / totalWeight;
   const stabilityRatio = acc.stability / totalWeight;
   const burstRatio = acc.burst / totalWeight;
 
-  // How much of the drawing was any one specific archetype, 0..1 of
-  // totalWeight, e.g. signWeights.bird. Generic and unopinionated on
-  // purpose: this file's job is composing numbers, not deciding what a
-  // given sign should look like animated. That decision lives in
-  // render.js, which reads whichever of these it wants for a sign it's
-  // giving its own distinct motion or form (see castEffect's own
-  // comments for which ones and why).
+  // How much of the drawing was any one specific archetype, 0..1 of totalWeight, e.g.
+  // signWeights.bird.
   const signWeights = {};
   for (const id in acc.byArchetype) signWeights[id] = acc.byArchetype[id] / totalWeight;
 
@@ -65,10 +56,9 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   const instabilityThreshold = Math.max(0.05, 0.15 - acc.stability * 0.04);
   const netsToZero = acc.directional > EPSILON && magnitude < instabilityThreshold;
 
-  // Three or more directional signs spread most of the way around the ring
-  // net to zero by construction (pushing outward in every direction at
-  // once, like Light Beam's four Column signs). That's a beacon, not a
-  // misfire, unlike two signs directly opposing each other.
+  // Three or more directional signs spread most of the way around the ring net to zero by
+  // construction (pushing outward in every direction at once, like Light Beam's four Column
+  // signs).
   const directionalSigns = signs.filter((s) => DIRECTIONAL_FAMILIES.includes(familyKeyOf(s.archetypeId)));
   let radiantCoverage = 0;
   if (directionalSigns.length >= 3) {
@@ -114,8 +104,7 @@ function composeSpell({ sigilId, signs, ringComplete }) {
   };
 }
 
-// Plain, factual description, no narrative flourish. Same params every
-// sigil x sign combination produces, so nothing here is hardcoded per combo.
+// Plain, factual description, no narrative flourish.
 function buildLabel(sigil, params, columnsCancel) {
   if (!sigil) return "no element chosen";
   if (columnsCancel) return `${sigil.name.toLowerCase()}, no net direction, signs cancel out`;

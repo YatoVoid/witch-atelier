@@ -1,9 +1,5 @@
-// Recognizes a drawn spell as one of the named spells in the spellbook,
-// but only for spells whose composition is confirmed, either documented
-// on the wiki or read directly off the reference art (see spellbook.js).
-// Most of the 104 spellbook images use a motif outside the 8 sigils and
-// 24 signs, or aren't legible enough to be confident about, so there's
-// nothing to match them against.
+// Recognizes a drawn spell as one of the named spells in the spellbook, but only for spells
+// whose composition is confirmed.
 const SPELL_SIGNATURES = [
   {
     name: "Grasping Wind",
@@ -128,7 +124,7 @@ function matchSpell(state) {
     const allRequiredPresent = sig.requiredFamilies.every((req) => families.includes(req));
     if (allAllowed && allRequiredPresent) matches.push(sig.name);
   }
-  // Watershot Seal and Rising Wave share an identical detectable
-  // signature, so both are offered rather than silently picking one.
+  // Watershot Seal and Rising Wave share an identical detectable signature, so both are offered
+  // rather than silently picking one.
   return matches.length ? matches.join(" or ") : null;
 }

@@ -1,8 +1,4 @@
-// The 24 signs, matching the named signs documented on the Witch Hat
-// Atelier wiki. Where the wiki describes a sign's mechanical function,
-// contribute() follows it. Where it only lists a name with no described
-// function (Bird, Eye, Vision, Dancing Puppet, Window), contribute() is a
-// placeholder grouped with the closest documented sign, noted per entry.
+// The 24 signs, matching the named signs documented on the Witch Hat Atelier wiki.
 const SIGN_ARCHETYPES = [
   {
     id: "column",

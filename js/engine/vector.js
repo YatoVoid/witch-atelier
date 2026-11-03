@@ -8,9 +8,7 @@ const Vector = {
   toDegrees(radians) {
     return ((radians * 180) / Math.PI + 360) % 360;
   },
-  // Canvas angle 0 points right (east) with y growing downward. Readers
-  // expect a map-style compass instead: 0 degrees at the top (north),
-  // increasing clockwise. This converts one to the other.
+  // Canvas angle 0 points right (east) with y growing downward.
   toBearing(radians) {
     return (Vector.toDegrees(radians) + 90) % 360;
   },

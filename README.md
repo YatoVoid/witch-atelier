@@ -1,58 +1,28 @@
-# Atelier: a Witch Hat Atelier spell circle workbench
+# Atelier
 
-A spell circle workbench in the style of Witch Hat Atelier's magic system. Pick an element, draw signs freehand anywhere on the circle, close the ring, and read what the composition resolves to.
+A spell circle workbench built on the magic system from *Witch Hat Atelier*: https://yatovoid.github.io/witch-atelier/
 
-Try it: https://yatovoid.github.io/witch-atelier/
+Pick an element, draw signs freehand anywhere on the circle, close the ring, and read what the spell resolves to. Then cast it and watch it play out on the circle.
 
-No build step, no backend. Static HTML, CSS, and JavaScript, deployable as is to GitHub Pages.
+![The empty circle](assets/screenshots/hero.png)
 
-![The circle, empty, ready to draw](assets/screenshots/hero.png)
+Nothing is chosen for you before you draw. The shape of each stroke decides which sign it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes. Direction, spread, sustain and intensity are worked out from what you actually drew, so the same element behaves differently depending on the signs around it, and the cast animation follows those numbers instead of playing one fixed effect per element.
 
-## What it does
+![Three Pull signs around a wind sigil, read as Grasping Wind](assets/screenshots/drawn-spell.png)
 
-Nothing is pre-selected before you draw. Draw a stroke anywhere on the circle and its shape decides what sign it is: straight and outward is a push, straight and inward is a pull, a wide sweep spreads, a tight scribble crushes. Close the ring and cast to see the effect play out on the circle itself.
+![Casting Grasping Wind](assets/screenshots/cast-demo.gif)
 
-![A drawn sign and its resolved reading in the side panel](assets/screenshots/drawn-spell.png)
+There are 8 elements and 24 signs. Recognition runs on the stroke geometry alone, in the browser, with no server and no model file, and a short calibration teaches it your handwriting. Drawn compositions are matched against 104 named spells from the series, and you can save your own spells to a grimoire and share them as a short code.
 
-![Casting Grasping Wind: three Pull signs around a wind sigil, the ring tilts into perspective, then the vortex fires](assets/screenshots/cast-demo.gif)
+![The spellbook](assets/screenshots/spellbook.png)
 
-- 8 elements, 24 signs. No shape is hardcoded to one element or one spell.
-- Recognizes drawn signs from their geometry alone. No server call, no model file.
-- Composes direction, spread, sustain, and intensity from whatever was actually drawn, not a lookup table.
-- Matches recognized compositions against 104 named spells pulled from the source material.
-- Personal calibration flow to teach the recognizer your own handwriting.
-- The cast animation reacts to what you drew: particle count, speed, spread, and a real tilted perspective all follow the composed spell instead of playing one fixed effect per element.
-- Save spells to a local grimoire, export and import them as a short code.
+On a phone the three panels become tabs.
 
-![The spellbook, searchable and filterable to what you can currently cast](assets/screenshots/spellbook.png)
+![The phone layout](assets/screenshots/mobile.png)
 
-Works on a phone too, panels become swipeable tabs below a certain width.
+## How a stroke is read
 
-![The mobile layout](assets/screenshots/mobile.png)
-
-## Fan project notice
-
-This is an unofficial fan project made for fun. It is not affiliated with, endorsed by, or sponsored by the creators, publishers, or rights holders of Witch Hat Atelier. The sigils, signs, spell terminology, and visual effects here are fan interpretations, not official assets or canonical rules. The sigil and sign glyphs in `assets/` are hand-drawn reconstructions of the canon designs, not traced from the manga's published pages.
-
-## Current limitations
-
-- One spell ring at a time. Multiple or nested rings aren't supported.
-- One sigil per circle. The engine expects exactly one primary element.
-- Recognition is template based, not a trained model. Clean, deliberate strokes work best.
-- Only 16 of the 104 spellbook entries are recognizable from what you draw right now. The rest are reference images only, their sign composition isn't confirmed closely enough to match against.
-- The cast animation is an interpretive effect, not a reproduction of the manga or anime's own visuals.
-
-## Run locally
-
-```
-python3 -m http.server 8000
-```
-
-Open `http://localhost:8000`.
-
-## How it works
-
-Draw one or more strokes anywhere on the circle (a pause of 1.5s locks the sign in, so a few strokes drawn close together count as one sign) and the shape decides which family it belongs to:
+Draw one or more strokes. A pause of about 1.4 seconds locks them in as one sign, so a sign made of a few parts still counts as one. The shape picks the family:
 
 | Shape | Family |
 |---|---|
@@ -65,46 +35,47 @@ Draw one or more strokes anywhere on the circle (a pause of 1.5s locks the sign 
 | closed loop, smooth | Diamond, Repetition, or Eye |
 | closed loop, chaotic | Crush |
 
-There's no shape difference between the signs within a family in the source material either. The stroke narrows it to a family; the sign list row's dropdown lets you pick which one you meant.
+The source material doesn't draw the signs in one family any differently either, so the stroke narrows it to a family and the dropdown on its row picks the member.
 
-### Files
+Closedness comes straight from the geometry. Inward or outward compares how far the longest stroke's start and end sit from the ring's center, so a decoration drawn as its own stroke can't flip it. Everything else goes through the $1 Unistroke Recognizer (Wobbrock, Wilson & Li, 2007): the stroke is resampled, recentered, rescaled and rotated, then matched against reference examples. Angular spread is only checked when that match isn't confident, to catch a real wide sweep without mistaking a long zigzag for one.
 
-- **`js/engine/classify.js`**: reads a sign's stroke geometry and returns a family plus its default member. Closedness is read directly off the raw geometry. Direction (outward vs. inward) compares the ring center distance of the longest stroke's start to its end, not first-stroke-to-last-stroke, so a decoration drawn as its own stroke can't flip the reading. Everything else (straight line vs. corner vs. zigzag vs. wiggle) goes through a point cloud shape matcher, the $1 Unistroke Recognizer (Wobbrock, Wilson & Li, 2007): the stroke is normalized (resampled, recentered, rescaled, rotated to a consistent orientation) and matched against reference examples in `js/data/templates.js`. Angular spread around the ring center is only checked once shape matching fails to find a confident match, to catch a genuine wide sweep without misreading a long armed peak or zigzag as one. Deterministic, no network call, no model file. `classifyStrokeGroup()` takes an optional pool of extra templates from `js/training.js`. Direction isn't trainable the same way, it's a geometric comparison, not a template match.
-- **`js/data/templates.js`**: reference examples for the shape matcher, one point array per shape. `straight`, `bend`, `bolt`, and `wavy` each carry templates traced off the actual glyph art in `assets/signs/*.webp`, alongside clean geometric templates and real hand-drawn examples. Add templates here to fix a shape that's still misread.
-- **`js/training.js`**: personal corrections, saved to `localStorage`. The "Wrong reading?" panel lists every sign directly; for shape-matched families it also saves the drawn stroke as an extra template. A multi-stroke sign radiating from a shared center (a Crosshair's four arms) is saved one arm per entry. `js/app.js` also offers a one-time calibration flow on first visit.
-- **`js/data/signatures.js`**: recognizes a drawn spell as a named spellbook entry, for the signatures whose sign composition is confirmed (documented on the wiki or read off the reference art).
-- **`js/data/sigils.js`**: the 8 elements.
-- **`js/data/signs.js`**: the 24 sign archetypes. Each has a `contribute(accumulator, instance)` function describing its effect on direction, spread, sustain, or intensity. Where the wiki doesn't document a sign's function, the entry says so and uses a placeholder grouped by feel.
-- **`js/data/spellbook.js`**: 104 named canon spells for the reference gallery. Descriptions are included only where the wiki documents the effect.
-- **`js/engine/compose.js`**: pure function reducing a chosen sigil and drawn signs into resolved parameters (direction, magnitude, spread, sustain, intensity) and misfire warnings.
-- **`js/engine/render.js`**: canvas rendering, ink color sampled from the reference artwork.
-- **`js/engine/vector.js`**: angle and compass bearing math.
-- **`js/grimoire.js`**: localStorage persistence and spell-code export/import.
+## Limits
 
-Direction and strength are computed, not looked up: each directional sign contributes a force vector from its angle and drawn length, summed for the net reading. Nothing about a specific element times sign combination is hardcoded.
+- One ring and one sigil per circle.
+- Recognition is template matching, not a trained model, so clean, deliberate strokes work best.
+- 16 of the 104 spellbook entries can be recognized from a drawing. The rest are reference images, because their sign composition isn't confirmed well enough to match against.
+- The cast animation is my interpretation, not a copy of the manga's or the anime's effects.
 
-## The artwork
+## Files
 
-The sigil and sign glyphs in `assets/` are hand-drawn reconstructions of the canon designs, not traced from the manga's published pages.
+| File | What it does |
+|---|---|
+| `js/engine/classify.js` | Reads a sign's strokes and returns its family and default member. Takes an optional pool of extra templates from `js/training.js`. |
+| `js/data/templates.js` | Reference strokes for the matcher: geometric ones, ones traced off the glyph art in `assets/signs/`, and real hand-drawn ones. Add one here to fix a shape that keeps being misread. |
+| `js/training.js` | Personal corrections saved in `localStorage`. "Wrong reading?" on a sign's row saves the stroke as an extra template for shape-matched families. |
+| `js/data/signatures.js` | Recognizes a drawing as a named spell, for spells whose composition is confirmed on the wiki or readable from the reference art. |
+| `js/data/sigils.js` | The 8 elements. |
+| `js/data/signs.js` | The 24 signs, each with a `contribute()` function for its effect on direction, spread, sustain or intensity. Where the wiki doesn't say what a sign does, the entry says so. |
+| `js/data/spellbook.js` | The 104 named spells. Descriptions only where the wiki documents the effect. |
+| `js/engine/compose.js` | Turns the sigil and signs into the resolved numbers and misfire warnings. |
+| `js/engine/render.js` | Draws the circle, the ink and the cast. |
+| `js/engine/vector.js` | Angle and compass math. |
+| `js/grimoire.js` | Saving spells and the spell code import and export. |
 
-## Adding a new sigil or sign
+To add an element, add it to `SIGILS` in `js/data/sigils.js`. To add a sign, add it to `SIGN_ARCHETYPES` in `js/data/signs.js` and to `SIGN_BUCKETS` in `js/engine/classify.js`. To add a spell, add a row to `SPELLBOOK` in `js/data/spellbook.js`.
 
-- **New element**: add an entry to `SIGILS` in `js/data/sigils.js` (name, particle style, image path).
-- **New sign archetype**: add an entry to `SIGN_ARCHETYPES` in `js/data/signs.js` with a `contribute()` function and image path, and place it in `SIGN_BUCKETS` in `js/engine/classify.js`.
-- **New spellbook entry**: add a row to `SPELLBOOK` in `js/data/spellbook.js`, with a `description` only if the wiki documents what it does.
+## Running it
 
-## Testing the recognition engine
+It's plain HTML, CSS and JavaScript with no build step.
 
-`test/run.js` is a plain Node script with no dependencies: it loads the engine files the same way `index.html` does and drives them with synthetic stroke geometry. Covers every sign family at several ring positions, jitter robustness at plausible hand-tremor levels, real hand-drawn examples traced from actual misclassifications, and every `SPELL_SIGNATURES` entry against its recipe and near-miss recipes that should be rejected.
+```
+python3 -m http.server 8000
+```
 
-Run with `node test/run.js`.
+Then open http://localhost:8000. `node test/run.js` runs the recognition tests: every sign family at several positions around the ring, hand tremor, real misread drawings, and every named spell against its recipe and near misses.
 
-## Deploying to GitHub Pages
+## Fan project
 
-1. `git init`, commit, push to a GitHub repo.
-2. In the repo's Settings, Pages, set the source to the `master` branch, root directory.
-3. No Actions workflow needed, there's no build step.
+This is an unofficial fan project. It isn't affiliated with or endorsed by the creators, publishers or rights holders of *Witch Hat Atelier*. The sigils, signs and spell names are fan interpretations, and the glyphs in `assets/` are redrawn reconstructions, not traced from the published pages.
 
-## License
-
-MIT for the code in this repository. See `LICENSE`. The Witch Hat Atelier characters, world, and terminology are not covered by this license and belong to their own rights holders, see the fan project notice above.
+The code is MIT licensed (see `LICENSE`). The characters, world and terminology belong to their rights holders.

@@ -1,9 +1,4 @@
-// Plain-node regression test for the recognition engine: no build step, no
-// dependencies. Loads the app's browser globals into a vm context the same
-// way index.html loads them as sequential <script> tags, then drives
-// classifyStrokeGroup() and matchSpell() with synthetic stroke geometry.
-//
-// Run with: node test/run.js
+// Plain-node regression test for the recognition engine: no build step, no dependencies.
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -27,9 +22,7 @@ for (const f of files) {
   const code = fs.readFileSync(path.join(root, f), "utf8");
   vm.runInContext(code, sandbox, { filename: f });
 }
-// Top-level `const`/`let` in vm-run scripts land in the context's lexical
-// scope, not as own properties of the sandbox object (only `var` and
-// function declarations do that), so pull them out explicitly.
+// Top-level `const`/`let` in vm-run scripts land in the context's lexical scope.
 vm.runInContext(
   "this.classifyStrokeGroup = classifyStrokeGroup; this.matchSpell = matchSpell; " +
     "this.familyKeyOf = familyKeyOf; this.bucketCandidates = bucketCandidates; " +
@@ -65,8 +58,7 @@ function check(label, actual, expected) {
   }
 }
 
-// ---- stroke builders (all in ring-center-relative coordinates, matching
-// app.js's toLocal()) ----
+// stroke builders
 function line(x1, y1, x2, y2, n = 12) {
   const pts = [];
   for (let i = 0; i <= n; i++) {
@@ -76,17 +68,13 @@ function line(x1, y1, x2, y2, n = 12) {
   return pts;
 }
 
-// Two straight arms meeting at one corner. equalArms=true makes a
-// symmetric peak (bend); a short second arm makes a spine+tick (should
-// stay in the straight family, dominance high).
+// Two straight arms meeting at one corner.
 function corner(x0, y0, xa, ya, x1, y1) {
   return [...line(x0, y0, xa, ya), ...line(xa, ya, x1, y1).slice(1)];
 }
 
-// A symmetric "^" peak of a fixed shape/size, just translated to (ox, oy)
-// (not rotated to the local radial direction): translating only, like a
-// real hand-drawn sign, avoids degenerate collinear points that a
-// direction-dependent construction can produce at some ring angles.
+// A symmetric "^" peak of a fixed shape/size, just translated to (ox, oy) (not rotated to the
+// local radial direction): translating only.
 function peakAt(ox, oy, arm = 35) {
   const local = corner(-arm, arm, 0, -arm, arm, arm);
   return local.map((p) => ({ x: p.x + ox, y: p.y + oy }));
@@ -141,8 +129,7 @@ function chaoticScribble(cx, cy, r) {
   return pts;
 }
 
-// ---- 1. classifyStrokeGroup: one representative stroke per family, at
-// several positions/angles around the ring. ----
+// 1. classifyStrokeGroup: one representative stroke per family, at several positions/angles around the ring.
 const positions = [
   { label: "east", ox: 150, oy: 0 },
   { label: "north", ox: 0, oy: -150 },
@@ -165,8 +152,8 @@ for (const { label, ox, oy } of positions) {
     "pull"
   );
 
-  // zigzag/bend shape (single sharp peak, symmetric arms) defaults to
-  // "direction", the more commonly used of that family's members.
+  // zigzag/bend shape (single sharp peak, symmetric arms) defaults to "direction", the more
+  // commonly used of that family's members.
   check(`zigzag/bend shape @ ${label} defaults to direction`, classifyStrokeGroup([peakAt(ox, oy)]), "direction");
 
   // zigzag/bolt: real multi-turn zigzag
@@ -182,8 +169,8 @@ for (const { label, ox, oy } of positions) {
   check(`closedChaotic @ ${label}`, classifyStrokeGroup([chaoticScribble(ox, oy, 40)]), "crush");
 }
 
-// wideOut/wideIn need angular spread around the ring center (0,0), since
-// angularSpread is measured from the origin, not the arc's own position.
+// wideOut/wideIn need angular spread around the ring center (0,0), since angularSpread is
+// measured from the origin, not the arc's own position.
 function arcSweep(radius, startDeg, endDeg, outward) {
   const pts = [];
   const n = 24;
@@ -199,13 +186,7 @@ function arcSweep(radius, startDeg, endDeg, outward) {
 check("wideOut (dispersion)", classifyStrokeGroup([arcSweep(90, -70, 70, true)]), "dispersion");
 check("wideIn (convergence)", classifyStrokeGroup([arcSweep(90, -70, 70, false)]), "convergence");
 
-// A wide sweep sometimes scores a passable, if not great, point-cloud
-// match against "bend" or "wavy" purely by chance (both are smooth
-// curves, easy to superficially resemble): gating the spread check on
-// shape-match confidence used to leave those sweeps stuck with whatever
-// family they happened to score OK against, with no way back to
-// reconsider them. Swept across radius, span, and start angle, since the
-// earlier bug specifically only showed up for some combinations, not all.
+// A wide sweep sometimes scores a passable, if not great.
 function checkArcSweepRobust(label, outward, passRate = 0.95) {
   let ok = 0;
   const total = 60;
@@ -229,20 +210,19 @@ function checkArcSweepRobust(label, outward, passRate = 0.95) {
 checkArcSweepRobust("wideOut (dispersion), swept radius/span/start angle", true);
 checkArcSweepRobust("wideIn (convergence), swept radius/span/start angle", false);
 
-// A peak's arms can subtend a wide angle from the ring center once drawn
-// long enough, the same way a straight line passing near center does,
-// without being any less a single sharp corner.
+// A peak's arms can subtend a wide angle from the ring center once drawn long enough, the same
+// way a straight line passing near center does.
 for (const arm of [35, 70, 100]) {
   check(`wide-armed bend (arm=${arm}) is not mistaken for a sweep`, classifyStrokeGroup([peakAt(150, 0, arm)]), "direction");
 }
 
-// Direction's glyph is a bare peak, so it must be reachable from the
-// same family a peak actually classifies into (Bend/Bolt), not Pull's.
+// Direction's glyph is a bare peak, so it must be reachable from the same family a peak
+// actually classifies into (Bend/Bolt), not Pull's.
 check("Direction is reachable from a peak's own family", bucketCandidates("bend").includes("direction"), true);
 check("Direction is not still listed under Pull's family", bucketCandidates("pull").includes("direction"), false);
 
-// Levitation/Bird/Eye moved out of "wavy" to match their actual glyph
-// shape (see SIGN_BUCKETS in classify.js).
+// Levitation/Bird/Eye moved out of "wavy" to match their actual glyph shape (see SIGN_BUCKETS
+// in classify.js).
 check("Levitation is reachable from Column's family (its glyph is a straight arrow)", bucketCandidates("column").includes("levitation"), true);
 check("Levitation is not still listed under wavy", bucketCandidates("float").includes("levitation"), false);
 check("Bird is reachable from Bend's family (its glyph is a curved hook)", bucketCandidates("bend").includes("bird"), true);
@@ -250,24 +230,19 @@ check("Bird is not still listed under wavy", bucketCandidates("float").includes(
 check("Eye is reachable from Diamond's family (its glyph is a closed oval)", bucketCandidates("diamond").includes("eye"), true);
 check("Eye is not still listed under wavy", bucketCandidates("float").includes("eye"), false);
 
-// A T-shape (spine + short tick) must NOT be misread as bend: the spine
-// should dominate. Drawn radially, not tangentially, since a tangential
-// stroke has both endpoints equidistant from center by construction and
-// leaves "outward vs inward" undefined regardless of detection quality.
+// A T-shape (spine + short tick) must NOT be misread as bend: the spine should dominate.
 const tSpine = line(20, -20, 170, -170); // outward along a diagonal
 const tTick = line(170, -170, 200, -145).slice(1); // short perpendicular-ish cap
 check("T-shape spine dominates (not bend)", classifyStrokeGroup([[...tSpine, ...tTick]]), "column");
 
-// ---- 2. every SIGN_ARCHETYPES member belongs to exactly one SIGN_BUCKETS
-// family, and every family has a reachable default. ----
+// 2. every SIGN_ARCHETYPES member belongs to exactly one SIGN_BUCKETS family, and every family has a reachable default.
 for (const archetype of SIGN_ARCHETYPES) {
   const family = familyKeyOf(archetype.id);
   if (!family) failures.push(`sign data integrity: "${archetype.id}" is not in any SIGN_BUCKETS family`), fail++;
   else pass++;
 }
 
-// ---- 3. matchSpell(): every declared signature actually matches its own
-// exact recipe, and clearly wrong recipes don't. ----
+// 3. matchSpell(): every declared signature actually matches its own exact recipe, and clearly wrong recipes don't.
 function familyToArchetype(familyKey) {
   const map = {
     straightOut: "column",
@@ -293,8 +268,8 @@ function buildSigns(familyKeys) {
 
 for (const sig of SPELL_SIGNATURES) {
   const count = Math.max(sig.minSigns || 1, sig.requiredFamilies.length);
-  // Build signs cycling through the allowed families, guaranteeing every
-  // required family appears at least once, up to `count` total signs.
+  // Build signs cycling through the allowed families, guaranteeing every required family
+  // appears at least once, up to `count` total signs.
   const families = [];
   for (const req of sig.requiredFamilies) families.push(req);
   while (families.length < count) families.push(sig.allowedFamilies[families.length % sig.allowedFamilies.length]);
@@ -313,9 +288,8 @@ for (const sig of SPELL_SIGNATURES) {
   const wrongSigilState = { sigilId: sig.sigilId + "-nope", signs: buildSigns(families) };
   check(`signature "${sig.name}" rejects wrong sigil`, matchSpell(wrongSigilState), null);
 
-  // Negative: missing a required family (drop the last required one, if
-  // there's more than the minimum) should not match this signature. Only
-  // meaningful when there's a required family to drop.
+  // Negative: missing a required family (drop the last required one, if there's more than the
+  // minimum) should not match this signature.
   if (sig.requiredFamilies.length > 0 && count > sig.requiredFamilies.length) {
     const withoutRequired = families.filter((f) => f !== sig.requiredFamilies[0]);
     if (withoutRequired.length > 0) {
@@ -337,11 +311,7 @@ for (const sig of SPELL_SIGNATURES) {
   }
 }
 
-// ---- 4. jitter robustness. A real finger on a small touchscreen circle
-// easily produces a few px of tremor per point; a shape that only
-// classifies correctly when drawn geometrically perfectly isn't actually
-// usable. Each shape has to hold up across a majority of noisy seeds at a
-// jitter level real drawing plausibly produces, not just at jitter=0. ----
+// 4. jitter robustness. A real finger on a small touchscreen circle easily produces a few px of tremor per point; a shape that only classifies correctly when drawn geometrically perfectly isn't actually usable. Each shape has to hold up across a majority of noisy seeds at a jitter level real drawing plausibly produces, not just at jitter=0.
 function seededRandom(seed) {
   let s = seed;
   return () => {
@@ -389,22 +359,20 @@ function checkJitterRobust(label, shapeFn, expected, passRate = JITTER_PASS_RATE
 
 checkJitterRobust("straightOut (column)", () => line(90, 0, 180, 0), "column");
 checkJitterRobust("straightIn (pull)", () => line(180, 0, 90, 0), "pull");
-// A single sharp corner is the closest neighboring family to a gentle
-// wiggle, so this one holds a slightly lower bar under heavy noise.
+// A single sharp corner is the closest neighboring family to a gentle wiggle, so this one holds
+// a slightly lower bar under heavy noise.
 checkJitterRobust("zigzag/bend shape defaults to direction", () => peakAt(150, 0), "direction", 0.7);
 checkJitterRobust("zigzag/bolt", () => zigzag(150, 0, 90, 5), "bolt");
 checkJitterRobust("closedSmooth (diamond)", () => realDiamond(150, 0, 45), "diamond");
 
-// Below ~50px across, diamonds aren't reliably recoverable (tremor is
-// 15-40% of the shape's own size) -- tracked as an accepted floor.
+// Below ~50px across, diamonds aren't reliably recoverable (tremor is 15-40% of the shape's own
+// size), tracked as an accepted floor.
 checkJitterRobust("wideOut (dispersion), drawn small", () => arcSweep(25, -70, 70, true), "dispersion");
 checkJitterRobust("wideIn (convergence), drawn small", () => arcSweep(25, -70, 70, false), "convergence");
 checkJitterRobust("closedSmooth (diamond), drawn small", () => realDiamond(150, 0, 50), "diamond");
 checkJitterRobust("closedSmooth (diamond), drawn tiny (known limitation, low bar)", () => realDiamond(150, 0, 25), "diamond", 0.3);
 
-// ---- 5. real hand-drawn examples that came back misclassified in
-// practice, traced from actual screenshots. Multi-stroke, so built
-// directly rather than through checkJitterRobust's single-stroke helper. ----
+// 5. real hand-drawn examples that came back misclassified in practice, traced from actual screenshots. Multi-stroke, so built directly rather than through checkJitterRobust's single-stroke helper.
 function realSignJitterRobust(label, pathsFn, expected, passRate = 0.7, jitterPx = JITTER_PX) {
   let ok = 0;
   for (let seed = 1; seed <= JITTER_SEEDS; seed++) {
@@ -423,16 +391,14 @@ function realSignJitterRobust(label, pathsFn, expected, passRate = 0.7, jitterPx
   }
 }
 
-// Vertical line into a small arrowhead, plus a separate wide crossbar
-// drawn through the tip.
+// Vertical line into a small arrowhead, plus a separate wide crossbar drawn through the tip.
 function realSign0(ox, oy) {
   const mainLine = [...line(0, -35, 0, 22), ...line(0, 22, -9, 15).slice(1), ...line(-9, 15, 0, 22).slice(1), ...line(0, 22, 9, 15).slice(1)];
   const crossbar = line(-19, 27, 19, 27);
   return [mainLine, crossbar].map((p) => p.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })));
 }
-// A crosshair: four separate straight strokes radiating from a shared
-// center, deliberately uneven lengths (up 45, down 35, left 29, right 31)
-// since a real hand rarely draws four perfectly equal arms.
+// A crosshair: four separate straight strokes radiating from a shared center, deliberately
+// uneven lengths (up 45, down 35, left 29, right 31).
 function realSign1(ox, oy) {
   const up = line(0, 0, 0, -45);
   const down = line(0, 0, 0, 35);
@@ -440,14 +406,13 @@ function realSign1(ox, oy) {
   const right = line(0, 0, 31, 0);
   return [up, down, left, right].map((p) => p.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })));
 }
-// Positioned north (not east): the sideways crossbar is tangential to the
-// ring there, and the main line's descent is unambiguously inward,
-// instead of both competing to shift the direction reading.
+// Positioned north (not east): the sideways crossbar is tangential to the ring there, and the
+// main line's descent is unambiguously inward.
 realSignJitterRobust("real: line + arrowhead + crossbar", () => realSign0(0, -150), "pull", 0.7, 3);
 realSignJitterRobust("real: crosshair (4 separate arms)", () => realSign1(150, 0), "crosshair", 0.6);
 
-// Real crosshair from a user's devtools log: unlike realSign1, its four
-// arms don't share an exact origin pixel.
+// Real crosshair from a user's devtools log: unlike realSign1, its four arms don't share an
+// exact origin pixel.
 function realSign2() {
   return [
     [{ x: -10, y: -111.8 }, { x: -10, y: -107.8 }, { x: -10, y: -103.8 }, { x: -11, y: -98.8 }, { x: -11, y: -92.8 }, { x: -11, y: -87.8 }, { x: -12, y: -81.8 }, { x: -12, y: -77.8 }, { x: -12, y: -73.8 }, { x: -12, y: -69.8 }, { x: -12, y: -66.8 }, { x: -12, y: -63.8 }],
@@ -459,11 +424,7 @@ function realSign2() {
 check("real: crosshair with imperfectly-shared arm origins", classifyStrokeGroup(realSign2()), "crosshair");
 realSignJitterRobust("real: crosshair with imperfectly-shared arm origins", realSign2, "crosshair", 0.6);
 
-// ---- 5b. a bare peak (Direction/Bend's shared shape) has to read as
-// "direction" from any rotation and either hand chirality (mirrored), not
-// just the one orientation it happened to be traced at. Real hands rarely draw
-// a peak with equal arm lengths or a dead-centered apex either, so the
-// peak itself is built asymmetric and re-randomized per seed. ----
+// 5b. a bare peak (Direction/Bend's shared shape) has to read as "direction" from any rotation and either hand chirality (mirrored), not just the one orientation it happened to be traced at. Real hands rarely draw a peak with equal arm lengths or a dead-centered apex either, so the peak itself is built asymmetric and re-randomized per seed.
 function rotatePoints(points, deg) {
   const r = (deg * Math.PI) / 180;
   return points.map((p) => ({ x: p.x * Math.cos(r) - p.y * Math.sin(r), y: p.x * Math.sin(r) + p.y * Math.cos(r) }));
@@ -511,25 +472,15 @@ function checkPeakOrientations(label, ringOffset, passRate) {
     failures.push(`${label}: only ${ok}/${total} (${(rate * 100).toFixed(0)}%) classified as "direction"`);
   }
 }
-// Drawn at a normal ring-relative position (matching the offset the other
-// position-sweep tests in section 1 use): every rotation, both
-// chiralities, under jitter.
+// Drawn at a normal ring-relative position (matching the offset the other position-sweep tests
+// in section 1 use): every rotation, both chiralities.
 checkPeakOrientations("bare peak, any rotation/mirror, normal ring position", 150, 0.95);
-// Drawn close enough to ring center that its own arms span a wide angle
-// from the origin, the same ambiguity a genuinely small Dispersion/
-// Convergence arc has there (see the small-Diamond note below): a corner
-// and a tight curve become hard to tell apart from noise alone at this
-// scale, not a gap specific to peaks. Tracked with a low bar rather than
-// silently left unmeasured.
+// Drawn close enough to ring center that its own arms span a wide angle from the origin.
 checkPeakOrientations("bare peak, any rotation/mirror, drawn close to ring center (known limitation, low bar)", 39, 0.55);
 
-// A steep, narrow peak (its two arms folding back close enough together
-// to nearly meet near its own base) used to satisfy the closed-shape
-// check meant for Diamond/Crush, without ever actually enclosing
-// anything -- misread as Diamond. Built with a real curve (quadratic,
-// not straight segments) since a rounded corner is how a hand actually
-// draws a sharp turn, and that curvature is what pushed loopClosure over
-// the old, looser threshold.
+// A steep, narrow peak (its two arms folding back close enough together to nearly meet near its
+// own base) used to satisfy the closed-shape check meant for Diamond/Crush, without ever
+// actually enclosing anything, misread as Diamond.
 function quadTo(a, b, c, n, out) {
   for (let i = 0; i <= n; i++) {
     const t = i / n;
@@ -552,15 +503,7 @@ checkJitterRobust(
   0.95
 );
 
-// A shape the matcher is very sure about (here, a razor-sharp corner,
-// point-cloud distance to "bend" under 0.02) has to stay on the bend
-// family's default (Direction) even when drawn at a position where its
-// endpoints happen to sit at a similar distance from ring center and span
-// a wide angle from there -- the same coincidence a genuine wide sweep
-// produces. Regression test for a mirror-matching side effect: removing
-// the old confidence gate entirely (to let genuine sweeps that scored a
-// mediocre match get reconsidered, see the wideOut/wideIn tests above)
-// briefly let this get misread as Dispersion too.
+// A shape the matcher is very sure about.
 check(
   "a confidently-matched sharp corner is not mistaken for a sweep",
   classifyStrokeGroup([[
@@ -569,8 +512,7 @@ check(
   "direction"
 );
 
-// ---- 6. drawing a sign larger produces a noticeably stronger reading,
-// reflected in the label text, not just the underlying number. ----
+// 6. drawing a sign larger produces a noticeably stronger reading, reflected in the label text, not just the underlying number.
 const smallColumn = composeSpell({
   sigilId: "fire",
   signs: [{ archetypeId: "column", angle: 0, length: 0.15, inverted: false }],
@@ -584,15 +526,7 @@ const largeColumn = composeSpell({
 check("a single large sign reads as higher intensity than a small one", largeColumn.params.intensity > smallColumn.params.intensity, true);
 check("that difference actually shows up in the label text, not just the number", largeColumn.label !== smallColumn.label, true);
 
-// ---- 7. stroke count disambiguates a family's shape-default toward a
-// specific sibling when (and only when) the count is clear of every other
-// member's own range, using the min/max separate-strokes-per-sign counts
-// reported from the source material. Tested directly against
-// refineByStrokeCount rather than through real stroke geometry: building
-// a synthetic multi-stroke drawing that reliably avoids also tripping
-// radiatesFromSharedHub (a many-stroke cluster easily looks like a hub by
-// accident) tests two unrelated heuristics at once instead of just this
-// one. ----
+// 7. stroke count disambiguates a family's shape-default toward a specific sibling when (and only when) the count is clear of every other member's own range, using the min/max separate-strokes-per-sign counts reported from the source material. Tested directly against refineByStrokeCount rather than through real stroke geometry: building a synthetic multi-stroke drawing that reliably avoids also tripping radiatesFromSharedHub (a many-stroke cluster easily looks like a hub by accident) tests two unrelated heuristics at once instead of just this one.
 check("column stays column at its own count (2)", refineByStrokeCount("column", 2), "column");
 check("straightOut count 3 promotes to levitation", refineByStrokeCount("column", 3), "levitation");
 check("straightOut count 4 (non-hub) promotes to levitation", refineByStrokeCount("column", 4), "levitation");
@@ -611,24 +545,15 @@ check("closedSmooth count 5 promotes diamond to repetition", refineByStrokeCount
 check("crush (closedChaotic) is untouched, different family bucket", refineByStrokeCount("crush", 5), "crush");
 check("pull (sole member of its family) is untouched", refineByStrokeCount("pull", 5), "pull");
 
-// enforceNotWildlyImpossible: never fires on a shortfall (undershooting
-// a family's minimum is normal), only on wild excess past its ceiling.
+// enforceNotWildlyImpossible: never fires on a shortfall (undershooting a family's minimum is
+// normal), only on wild excess past its ceiling.
 check("well within range: untouched", enforceNotWildlyImpossible("column", 2), "column");
 check("under a family's minimum: untouched, that's the normal single-gesture case", enforceNotWildlyImpossible("column", 1), "column");
 check("a couple strokes past the ceiling: untouched, within the tolerance margin", enforceNotWildlyImpossible("diamond", 6), "diamond");
 check("wildly past the ceiling: corrected to whatever the count actually fits", enforceNotWildlyImpossible("diamond", 13), "rain");
 check("wildly past the ceiling from Crush too (same family bucket)", enforceNotWildlyImpossible("crush", 13), "rain");
 
-// ---- 8. a many-stroke drawing can never come back labeled Diamond or
-// Crush, whose combined range (1-5 strokes total between all of
-// closedSmooth/closedChaotic) makes that a physical impossibility.
-// Regression test for a real reported bug: a long dominant stroke that
-// happens to curl back near its own start (satisfying the closed-loop
-// check in isolation) dragged the WHOLE sign down that branch on its
-// shape alone, misreading a 13-stroke drawing (which fits nothing but
-// Rain, 13-16) as a 1-4-stroke Diamond -- an answer the stroke count
-// alone already disproves, regardless of how closed any one stroke in
-// it looks. ----
+// 8. a many-stroke drawing can never come back labeled Diamond or Crush, whose combined range (1-5 strokes total between all of closedSmooth/closedChaotic) makes that a physical impossibility. Regression test for a real reported bug: a long dominant stroke that happens to curl back near its own start (satisfying the closed-loop check in isolation) dragged the WHOLE sign down that branch on its shape alone, misreading a 13-stroke drawing (which fits nothing but Rain, 13-16) as a 1-4-stroke Diamond -- an answer the stroke count alone already disproves, regardless of how closed any one stroke in it looks.
 function shortLine(x0, y0, x1, y1, n = 6) {
   const pts = [];
   for (let i = 0; i <= n; i++) {
@@ -658,25 +583,7 @@ check("a 13-stroke drawing with a self-closing dominant stroke is not Diamond", 
 check("a 13-stroke drawing with a self-closing dominant stroke is not Crush", rainLikeResult !== "crush", true);
 check("...and actually resolves to Rain, the only sign 13 strokes fits", rainLikeResult, "rain");
 
-// ---- 9. fuzz: no drawing at a high stroke count should ever classify
-// into a family whose combined stroke ceiling (the most generous member,
-// across everyone in SIGN_STROKE_RANGE with known data) can't plausibly
-// reach that many. This is the general form of the Rain/Diamond bug
-// above, found by classifyStrokeGroup's own production backstop
-// (enforceNotWildlyImpossible) failing to correct it -- checking only
-// wild EXCESS, on purpose: undershooting a family's minimum is this
-// app's normal single-gesture behavior (every "@ position" check earlier
-// in this file draws with exactly one stroke and expects a family
-// default back) and is never treated as a violation, only a drawing with
-// far more strokes than any member of the landed family could ever use.
-//
-// Six shape generators (one per SIGN_BUCKETS family) each get padded
-// with a random number of small decorative strokes scattered around a
-// random center, at several stroke counts well past what any family
-// here tops out at (SIGN_STROKE_RANGE's own ceiling is 16, Rain's) --
-// covering combinations no single hand-written example would think to
-// try, the actual value of a fuzz test over more hand-picked regression
-// cases like section 8 above. ----
+// 9. fuzz: no drawing at a high stroke count should ever classify into a family whose combined stroke ceiling (the most generous member, across everyone in SIGN_STROKE_RANGE with known data) can't plausibly reach that many. This is the general form of the Rain/Diamond bug above, found by classifyStrokeGroup's own production backstop (enforceNotWildlyImpossible) failing to correct it -- checking only wild EXCESS, on purpose: undershooting a family's minimum is this app's normal single-gesture behavior (every "@ position" check earlier in this file draws with exactly one stroke and expects a family default back) and is never treated as a violation, only a drawing with far more strokes than any member of the landed family could ever use.  Six shape generators (one per SIGN_BUCKETS family) each get padded with a random number of small decorative strokes scattered around a random center, at several stroke counts well past what any family here tops out at (SIGN_STROKE_RANGE's own ceiling is 16, Rain's) -- covering combinations no single hand-written example would think to try, the actual value of a fuzz test over more hand-picked regression cases like section 8 above.
 function familyStrokeBounds(archetypeId) {
   let max = -Infinity;
   for (const id of bucketCandidates(archetypeId)) {
@@ -720,24 +627,9 @@ function randomChaotic(cx, cy, rand) {
   return chaoticScribble(cx, cy, 25 + rand() * 35);
 }
 
-// Only checks wild EXCESS, never a shortfall: undershooting a family's
-// documented minimum is normal and constant in this app (drawing Column
-// with a single stroke, no decorative extras, is the ordinary, intended,
-// minimal gesture -- every "@ position" check earlier in this file does
-// exactly that), so that's never treated as a violation. A margin of 4
-// strokes past a family's own ceiling is the threshold before something
-// counts as a violation here, the same order of magnitude as the
-// reported bug (13 strokes for a family that tops out at 5): a couple
-// of strokes over is plausible over-drawing, nowhere near a whole
-// different, much larger sign's worth of extra strokes is not.
-//
-// Capped at 16, the highest ceiling anything in SIGN_STROKE_RANGE has
-// (Rain's own max) -- past that, enforceNotWildlyImpossible in
-// classify.js has correctly run out of anything to correct TO (nothing
-// documented reaches 17+ strokes either), and keeps the original guess
-// as the least-wrong fallback available rather than inventing an answer
-// with no data behind it. That's a real, known, and accepted limit, not
-// a bug this fuzz test should be flagging.
+// Only checks wild EXCESS, never a shortfall: undershooting a family's documented minimum is
+// normal and constant in this app (drawing Column with a single stroke, no decorative extras,
+// is the ordinary, intended, minimal gesture, every "@ position" check earlier in this file
 function fuzzStrokeCountPlausibility(label, primaryShapeFn) {
   let violations = 0;
   let total = 0;
@@ -781,7 +673,7 @@ fuzzStrokeCountPlausibility("fuzz: wavy-shaped drawings at high stroke counts", 
 fuzzStrokeCountPlausibility("fuzz: closed-smooth-shaped drawings at high stroke counts", randomClosedSmooth);
 fuzzStrokeCountPlausibility("fuzz: chaotic-scribble-shaped drawings at high stroke counts", randomChaotic);
 
-// ---- report ----
+// report
 console.log(`\n${pass} passed, ${fail} failed`);
 if (failures.length) {
   console.log("\nFailures:");

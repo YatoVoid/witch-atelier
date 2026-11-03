@@ -12,24 +12,14 @@
     groupPaths: [],
   };
 
-  // First-visit calibration: walks through drawing examples of each named
-  // sign, not just the underlying shape categories the point-cloud matcher
-  // trains on (see js/training.js) -- shape alone can't tell same-family
-  // signs apart (Bend vs Direction, Column vs Enlarge, ...), so calibrating
-  // only the shapes left every family stuck on its one hardcoded default.
-  // Shown once on first visit if there's no saved training data and it
-  // hasn't been dismissed; also reachable any time after via the
-  // Recalibrate button in the Shape guide, since handwriting drifts and a
-  // family's preferred default is worth revisiting without re-triggering
-  // the full first-visit banner.
+  // First-visit calibration: walks through drawing examples of each named sign.
   const ONBOARDING_KEY = "witch-atelier:onboarding-dismissed";
   const QUICK_CALIBRATION_REPS = 2;
   let calibrationRepCount = QUICK_CALIBRATION_REPS;
   let calibration = null; // { signIndex, rep } while active, else null
 
-  // Every sign the "wrong reading?" panel can set, built from
-  // SIGN_BUCKETS rather than a separate list, so it can't drift out of
-  // sync with classify.js's family membership.
+  // Every sign the "wrong reading?" panel can set, built from SIGN_BUCKETS rather than a
+  // separate list.
   const FAMILY_TRAIN_LABEL = { straightOut: "straight", straightIn: "straight", wavy: "wavy" };
   const SIGN_TRAIN_LABEL_OVERRIDE = { bend: "bend", direction: "bend", bird: "bend", bolt: "bolt" };
   const CORRECTION_FAMILIES = Object.keys(SIGN_BUCKETS).flatMap((familyKey) =>
@@ -45,18 +35,7 @@
     })
   );
 
-  // One calibration step per named sign (not per shape), grouped by
-  // family (SIGN_BUCKETS order, not SIGN_ARCHETYPES' order -- the two
-  // don't match, and stepping through Direction long before Bend and Bird
-  // meant whichever of the three happened to be calibrated last quietly
-  // became the family's default, discarding whatever the first two had
-  // just set without any indication that's what was happening). Completing
-  // a sign's reps feeds the shape matcher (where the family has one --
-  // wideOut/wideIn/closedSmooth/closedChaotic are read structurally, not
-  // template-matched, so trainLabel is null for those); which one becomes
-  // the family's preferred default (see PREFERRED_DEFAULT_KEY below) is
-  // asked explicitly once the whole family's signs are calibrated, not
-  // inferred from whichever was drawn last.
+  // One calibration step per named sign (not per shape), grouped by family.
   const CALIBRATION_FAMILIES = Object.keys(SIGN_BUCKETS).map((familyKey) => ({
     familyKey,
     signs: SIGN_BUCKETS[familyKey].map((id) => {
@@ -71,17 +50,7 @@
     }),
   }));
 
-  // Shape alone can't tell apart signs in the same family (see classify.js),
-  // so correcting "Direction" to "Bend" (or Enlarge, Bird, Float, ...) only
-  // ever teaches the shape matcher what a bend/direction/bolt/bird-shaped
-  // stroke looks like -- classifyStrokeGroup() always returns the family's
-  // one hardcoded default archetype ("direction" for a bend-shaped peak,
-  // chosen since it's the more commonly used of the two) regardless of how
-  // much training data piles up for it, so a correction to a non-default
-  // family member could never actually change what showed up next time, no
-  // matter how many times it was repeated. This remembers a preferred
-  // default per family separately from shape training, and finalizeGroup()
-  // below applies it after classification.
+  // Shape alone can't tell apart signs in the same family (see classify.js).
   const PREFERRED_DEFAULT_KEY = "witch-atelier:preferred-defaults";
   function getPreferredDefaults() {
     try {
@@ -96,15 +65,8 @@
     localStorage.setItem(PREFERRED_DEFAULT_KEY, JSON.stringify(prefs));
   }
 
-  // How many separate strokes THIS user tends to draw a given sign with,
-  // learned from calibration reps rather than asked for directly.
-  // CalibrationDataset already stores every kept rep's raw paths per
-  // sign (see keepCalibrationRep below), so paths.length across those
-  // reps already is exactly that -- no new storage, no new calibration
-  // step, just reading data that was already being collected. The mode
-  // (most repeated count) is used rather than an average, since a
-  // fractional "2.4 strokes" wouldn't mean anything to compare against a
-  // live drawing's actual, integer count.
+  // How many separate strokes THIS user tends to draw a given sign with, learned from
+  // calibration reps rather than asked for directly.
   function personalStrokeCountProfile() {
     const bySign = {};
     for (const entry of CalibrationDataset.list()) {
@@ -124,17 +86,7 @@
     return profile;
   }
 
-  // Column and Levitation both list a valid 2-stroke drawing in the
-  // source material, so the canon min/max table in classify.js can't
-  // tell them apart at count 2 and correctly doesn't try. But if THIS
-  // user's own calibration reps show Column always lands on 2 strokes
-  // and Levitation always lands on 3, that ambiguity doesn't exist for
-  // them specifically -- a live drawing that comes in at exactly 2 or
-  // exactly 3 strokes has an unambiguous personal answer, even though
-  // the shared canon range never could. Only trusted on an exact match:
-  // picking whichever calibrated member's mode count is merely closest
-  // to what was drawn, with no exact hit, would just be guessing with
-  // extra steps.
+  // Column and Levitation both list a valid 2-stroke drawing in the source material.
   function refineByPersonalStrokeCount(detectedArchetypeId, strokeCount) {
     const candidates = bucketCandidates(detectedArchetypeId);
     if (candidates.length <= 1) return detectedArchetypeId;
@@ -206,16 +158,15 @@
     return total;
   }
 
-  // ---- Palette: sigils ----
+  // Palette: sigils
   const sigilPalette = document.getElementById("sigil-palette");
   SIGILS.forEach((sigil) => {
     const btn = document.createElement("button");
     btn.className = "chip chip-image";
     btn.dataset.sigil = sigil.id;
-    // Each element's own color (see js/data/sigils.js), read by
-    // .chip-image's border/background rules in style.css -- makes the
-    // element picker itself color-coded instead of every chip looking
-    // identical until you read the label.
+    // Each element's own color (see js/data/sigils.js), read by .chip-image's border/background
+    // rules in style.css, makes the element picker itself color-coded instead of every chip
+    // looking identical until you read the label.
     btn.style.setProperty("--sigil-color", sigil.color);
     const img = document.createElement("img");
     img.src = sigil.image;
@@ -232,7 +183,7 @@
     sigilPalette.appendChild(btn);
   });
 
-  // ---- Sign shape guide (reference only, drawing is what selects the archetype) ----
+  // Sign shape guide
   const signPalette = document.getElementById("sign-palette");
   SIGN_ARCHETYPES.forEach((archetype) => {
     const row = document.createElement("div");
@@ -253,31 +204,16 @@
     signPalette.appendChild(row);
   });
 
-  // ---- Freehand stroke capture: draw anywhere, any shape, any length ----
-  // A sign can be one or more strokes; after a stroke ends there's a short
-  // pause during which another stroke counts as part of the same sign.
-  // Once that pause elapses, the group classifies and locks in (classify.js).
-  //
-  // Each point passes through a One Euro Filter (js/engine/smoothing.js)
-  // before it's stored or drawn: a fingertip resting mid-stroke jitters
-  // by a few px even when the person means to hold still or move in a
-  // straight line, and that noise was going straight into the geometry
-  // classify.js measures (loop closure, sharp-turn counts, hub-detection
-  // radius). The filter is speed-adaptive, not a fixed smoothing window --
-  // slow movement gets smoothed hard, a fast deliberate corner barely at
-  // all -- so a genuine sharp turn drawn at normal speed survives while
-  // low-speed tremor gets absorbed. Reset per stroke (not per sign) so a
-  // pause between a multi-stroke sign's parts doesn't smear across strokes.
+  // Freehand stroke capture: draw anywhere, any shape, any length
+  // A sign can be one or more strokes; after a stroke ends there's a short pause during which
+  // another stroke counts as part of the same sign.
   let strokeSmoother = null;
   canvas.addEventListener("pointerdown", (e) => {
-    // Awaiting Keep/Redo, or picking a family's default: the pending
-    // stroke isn't resolved yet, so a new one can't start on top of it.
+    // Awaiting Keep/Redo, or picking a family's default: the pending stroke isn't resolved yet,
+    // so a new one can't start on top of it.
     if (calibration && calibration.mode !== "draw") return;
-    // The canvas is genuinely CSS-tilted in 3D while a cast plays (see
-    // #circle.casting in style.css) -- toLocal() maps pointer coordinates
-    // against the canvas's on-screen bounding box, which the tilt
-    // changes the shape of, so a stroke started mid-cast would land
-    // somewhere other than where the finger/cursor actually is.
+    // The canvas is genuinely CSS-tilted in 3D while a cast plays (see #circle.casting in
+    // style.css).
     if (casting) return;
     if (groupTimer) {
       clearTimeout(groupTimer);
@@ -304,8 +240,8 @@
   const lastDrawnEl = document.getElementById("last-drawn");
   let groupPaths = [];
 
-  // Only updates "Read as: ..." when the correction is for the
-  // most-recently-drawn sign, so an older correction doesn't overwrite it.
+  // Only updates "Read as: ..." when the correction is for the most-recently-drawn sign, so an
+  // older correction doesn't overwrite it.
   function refreshLastDrawnIfCurrent(instance) {
     if (state.signs[state.signs.length - 1] !== instance) return;
     const archetype = getArchetype(instance.archetypeId);
@@ -317,26 +253,17 @@
     if (groupPaths.length === 0) return;
 
     if (calibration) {
-      // Doesn't save or advance yet -- groupPaths is left as-is (still
-      // rendered, semi-transparent, by drawScene) so the drawn stroke
-      // stays visible while Keep/Redo decides whether it was any good.
-      // A bad rep committed straight to training data with no way back
-      // was actively teaching the matcher the wrong thing.
+      // Doesn't save or advance yet, groupPaths is left as-is (still rendered,
+      // semi-transparent, by drawScene) so the drawn stroke stays visible.
       enterCalibrationReview();
       render();
       return;
     }
 
     const detectedArchetypeId = classifyStrokeGroup(groupPaths, Training.asTemplatePool());
-    // Personal stroke-count habit (see refineByPersonalStrokeCount above)
-    // wins first where it has a confident, exact answer -- it's a
-    // per-drawing signal, more specific than a single flat preference for
-    // the whole family. Falls through to the flat preferred default (e.g.
-    // Bend instead of Direction -- see PREFERRED_DEFAULT_KEY above) only
-    // when it doesn't have one. bucketCandidates() re-derives the same
-    // family the detected id is already in either way, so neither of
-    // these can change what family (and therefore what effect) the sign
-    // resolves to, only which member within it.
+    // Personal stroke-count habit (see refineByPersonalStrokeCount above) wins first where it
+    // has a confident, exact answer, it's a per-drawing signal, more specific than a single
+    // flat preference for the whole family.
     const personalMatch = refineByPersonalStrokeCount(detectedArchetypeId, groupPaths.length);
     let archetypeId = personalMatch;
     if (personalMatch === detectedArchetypeId) {
@@ -380,8 +307,8 @@
     if (rawPoints.length >= 2 && pathLength(rawPoints) >= 8) {
       groupPaths.push(rawPoints.slice());
       state.groupPaths = groupPaths;
-      // Calibration's own step text already says what's happening; this
-      // status line is for normal drawing, sitting right below it.
+      // Calibration's own step text already says what's happening; this status line is for
+      // normal drawing, sitting right below it.
       if (!calibration) lastDrawnEl.textContent = "Drawing... (pause to lock in)";
     }
     rawPoints = [];
@@ -393,7 +320,7 @@
   canvas.addEventListener("pointerup", finishStroke);
   canvas.addEventListener("pointercancel", finishStroke);
 
-  // ---- Ring completion toggle ----
+  // Ring completion toggle
   const ringToggle = document.getElementById("ring-toggle");
   ringToggle.addEventListener("click", () => {
     state.ringComplete = !state.ringComplete;
@@ -402,7 +329,7 @@
     recompute();
   });
 
-  // ---- Clear: start the current spell over, keep the chosen element ----
+  // Clear: start the current spell over, keep the chosen element
   document.getElementById("clear-btn").addEventListener("click", () => {
     state.signs = [];
     state.ringComplete = false;
@@ -414,7 +341,7 @@
     recompute();
   });
 
-  // ---- Calibration ----
+  // Calibration
   const calibrationBanner = document.getElementById("calibration-banner");
   const calibrationStepEl = document.getElementById("calibration-step");
   const calibrationStepText = document.getElementById("calibration-step-text");
@@ -429,29 +356,8 @@
     calibrationBanner.hidden = true;
   }
 
-  // Where to resume is computed fresh from the drawings themselves every
-  // time, not tracked as a separate pointer -- a separate "familyIndex/
-  // signIndex/rep so far" value only stays correct as long as nothing
-  // else ever changes the underlying data without also updating it in
-  // lockstep, and importing a file (possibly one merging data from a
-  // completely different session) is exactly the kind of change that
-  // pointer had no way to know about.
-  //
-  // Resume trusts forward progress at the FAMILY level rather than
-  // stopping at the first individual sign short of the target: an
-  // imported file built after a storage reset mid-session can genuinely
-  // have zero examples of an earlier family (Column, say) while still
-  // having plenty of a much later one (Bolt) -- that's not evidence
-  // Column needs redoing, it's evidence of exactly when the reset
-  // happened, since the app's own flow never reaches a later family
-  // without going through every earlier family's default-picker first.
-  // Whichever family the drawings reach furthest into is trusted as the
-  // real starting point; every family before it is treated as already
-  // done regardless of what any one file happens to contain for it.
-  // Signs WITHIN that furthest family are still checked properly from
-  // its own start, since drawing can genuinely leave one of its earlier
-  // signs (Rain, say) short while a later one in the same family (Weave)
-  // is already at target.
+  // Where to resume is computed fresh from the drawings themselves every time, not tracked as a
+  // separate pointer, a separate "familyIndex/ signIndex/rep.
   function computeCalibrationResumePoint(targetRepCount) {
     const counts = CalibrationDataset.countBySign();
     let furthestFamilyIndex = 0;
@@ -525,10 +431,8 @@
     renderCalibrationStep();
   }
 
-  // Asked once per family, after every member's reps are done, rather than
-  // inferred from whichever sign happened to be calibrated last -- shape
-  // alone can't tell Bend from Direction from Bird, so there's no way to
-  // recover the intended default from the drawing itself after the fact.
+  // Asked once per family, after every member's reps are done, rather than inferred from
+  // whichever sign happened to be calibrated last.
   function enterDefaultPicker(family) {
     calibration.mode = "pick-default";
     calibrationStepEl.hidden = true;
@@ -556,14 +460,8 @@
   }
 
   function stopCalibration(completed) {
-    // Whatever's mid-flight when calibration stops -- a stroke still
-    // being drawn, or a finished rep sitting in review waiting on
-    // Keep/Redo -- has to be thrown away here too, the same way
-    // keepCalibrationRep()/redoCalibrationRep() already clear it on
-    // their own exits. Left alone, it stayed in state.groupPaths
-    // (rendered semi-transparent by drawScene, separately from
-    // state.signs) forever: Clear only resets state.signs, so there was
-    // no way back to a blank circle afterward.
+    // Whatever's mid-flight when calibration stops, a stroke still being drawn, or a finished
+    // rep sitting in review waiting on Keep/Redo.
     if (groupTimer) {
       clearTimeout(groupTimer);
       groupTimer = null;
@@ -593,12 +491,7 @@
       ? { familyIndex: resumeAt.familyIndex, signIndex: resumeAt.signIndex, rep: resumeAt.rep, mode: "draw" }
       : { familyIndex: 0, signIndex: 0, rep: 0, mode: "draw" };
     renderCalibrationStep();
-    // The Circle tab is where the actual drawing step lives; on mobile
-    // (where these are real tabs, not just a desktop 3-column layout)
-    // tapping Build training set otherwise leaves the step sitting
-    // unseen behind the Sigils & Signs tab the button itself is on,
-    // easy to mistake for nothing having happened. Harmless to call on
-    // desktop too -- every panel is already visible there regardless.
+    // The Circle tab is where the actual drawing step lives.
     document.querySelector('[data-tab-target="circle"]')?.click();
   }
 
@@ -611,14 +504,10 @@
     const trainingOk = sign.trainLabel ? Training.save(groupPaths, sign.trainLabel) : true;
     const datasetOk = CalibrationDataset.add(sign.id, sign.familyKey, groupPaths);
     if (!trainingOk || !datasetOk) {
-      // Storage is full (localStorage.setItem threw -- see the comments on
-      // Training.save/CalibrationDataset.add). Everything saved before this
-      // rep is untouched and safe; this rep specifically didn't make it in.
-      // Left in review rather than advancing past it silently, with the
-      // drawn stroke still on screen, so nothing here just quietly
-      // vanishes -- the only way out is to actually go export.
+      // Storage is full (localStorage.setItem threw, see the comments on
+      // Training.save/CalibrationDataset.add).
       calibrationStepText.innerHTML =
-        `<strong>Storage is full.</strong> Everything saved before this didn't go anywhere -- export it now ` +
+        `<strong>Storage is full.</strong> Everything saved before this didn't go anywhere. Export it now ` +
         `(Shape guide → Export training data), then either free up space or stop here with what you have.`;
       return;
     }
@@ -633,16 +522,11 @@
     groupPaths = [];
     state.groupPaths = groupPaths;
     render();
-    renderCalibrationStep(); // same sign, same rep count -- just try again
+    renderCalibrationStep(); // same sign, same rep count, just try again
   }
   document.getElementById("calibration-keep").addEventListener("click", keepCalibrationRep);
   document.getElementById("calibration-redo").addEventListener("click", redoCalibrationRep);
-  // Building a real training set means hundreds of Keep clicks in a row --
-  // reaching for the mouse every time is exactly the friction that makes
-  // 50-per-sign painful. Shift keeps (one hand stays on the drawing hand's
-  // side of the keyboard); Escape redoes, the same "back out of this"
-  // meaning it has everywhere else. Only live during the review step, so
-  // neither key does anything while actually drawing or elsewhere in the app.
+  // Building a real training set means hundreds of Keep clicks in a row.
   document.addEventListener("keydown", (e) => {
     if (!calibration || calibration.mode !== "review" || e.repeat) return;
     if (e.key === "Shift") {
@@ -653,12 +537,7 @@
       redoCalibrationRep();
     }
   });
-  // Always reachable, not just on first visit: handwriting drifts, and
-  // revisiting which sign should default for a family (Bend vs Direction,
-  // ...) is a normal thing to want later, not just once at onboarding.
-  // Tucked into the already-collapsed Shape guide section rather than a
-  // banner, so it's available without sitting in front of the user
-  // every time they open the app.
+  // Always reachable, not just on first visit: handwriting drifts, and revisiting.
   document.getElementById("recalibrate-btn").addEventListener("click", () => startCalibration(QUICK_CALIBRATION_REPS));
 
   const datasetProgressEl = document.getElementById("dataset-progress");
@@ -684,11 +563,10 @@
     calibrationBanner.hidden = false;
   }
 
-  // ---- Placed signs list (fine control + accessible alternative to drawing) ----
+  // Placed signs list
   const signList = document.getElementById("sign-list");
-  // renderSignList() rebuilds every row from scratch, so open/confirmed
-  // panel state lives here instead, keyed by sign instance (not index,
-  // which shifts when a sign is removed) so it survives the rebuild.
+  // renderSignList() rebuilds every row from scratch, so open/confirmed panel state lives here
+  // instead.
   const correctionPanelState = new Map();
   function renderSignList() {
     signList.innerHTML = "";
@@ -852,7 +730,7 @@
     });
   }
 
-  // ---- Readout ----
+  // Readout
   const readoutEl = document.getElementById("readout");
   function renderReadout(result) {
     const { params, warnings, label, ok, match } = result;
@@ -871,29 +749,19 @@
       <p class="effect-label">${label}</p>
       ${match ? `<p class="spell-match">Matches a known spell: ${match}</p>` : ""}
       ${warnings.length ? `<ul class="warnings">${warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : ""}
-      <p class="status ${ok ? "ok" : "warn"}">${ok ? "stable" : "unstable"}</p>
+      <p class="status ${ok ? "ok" : "warn"}">${ok ? "Stable" : "Unstable"}</p>
     `;
   }
 
-  // ---- Cast: only fires with a closed ring ----
+  // Cast: only fires with a closed ring
   const castBtn = document.getElementById("cast-btn");
   castBtn.addEventListener("click", () => {
     if (!state.ringComplete || casting) return;
     const result = composeSpell(state);
-    // A recognized named spell (Light Beam, Grasping Wind, ...) gets its
-    // own cast motion instead of the generic direction/spread-driven
-    // burst -- see js/data/castpresets.js for which ones and why.
+    // A recognized named spell.
     const preset = castPresetFor(matchSpell(state));
-    // The tilt is a real CSS 3D transform on the canvas itself (see
-    // #circle.casting in style.css), not anything faked in render.js.
-    // Sequenced rather than started together: the plate tilts back
-    // first, THEN the effect fires once it's actually settled into
-    // position, THEN the plate levels back out only once the effect is
-    // done -- starting the burst mid-tilt (or leveling out while it was
-    // still playing) looked like the two were racing each other instead
-    // of one following the other. TILT_MS has to match the #circle.casting
-    // transition duration in style.css, there's no DOM event fired here
-    // that ties them together automatically.
+    // The tilt is a real CSS 3D transform on the canvas itself (see #circle.casting in
+    // style.css), not anything faked in render.js.
     const TILT_MS = 500;
     casting = true;
     canvas.classList.add("casting");
@@ -909,7 +777,7 @@
     }, TILT_MS);
   });
 
-  // ---- Save / Grimoire ----
+  // Save / Grimoire
   const grimoireList = document.getElementById("grimoire-list");
   const nameInput = document.getElementById("spell-name");
 
@@ -972,7 +840,7 @@
     refreshGrimoire();
   });
 
-  // ---- Import by code ----
+  // Import by code
   document.getElementById("import-btn").addEventListener("click", () => {
     const code = document.getElementById("import-code").value;
     const decoded = Grimoire.decode(code);
@@ -991,7 +859,7 @@
     document.getElementById("import-code").value = "";
   });
 
-  // ---- Spellbook gallery ----
+  // Spellbook gallery
   // Recognized spells (those with a SPELL_SIGNATURES entry) sort first.
   const spellbookEl = document.getElementById("spellbook");
   const spellbookCountEl = document.getElementById("spellbook-count");
@@ -1005,7 +873,7 @@
     return a.name.localeCompare(b.name);
   });
 
-  spellbookCountEl.textContent = `${recognizedNames.size} of ${SPELLBOOK.length} spells below can be recognized from what you draw. Look for the Recognized badge.`;
+  spellbookCountEl.textContent = `${recognizedNames.size} of ${SPELLBOOK.length} spells below can be recognized from what you draw. They are marked Recognized under their name.`;
 
   let recognizedOnly = false;
 
@@ -1065,7 +933,7 @@
 
   renderSpellbook();
 
-  // ---- init ----
+  // init
   renderSignList();
   refreshGrimoire();
   recompute();

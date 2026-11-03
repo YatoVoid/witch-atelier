@@ -1,108 +1,46 @@
 :root {
-  /* Warmed from a neutral off-white/near-black to an aged-parchment and
-     ink-brown pairing -- inspired by wha-spell-simulator's tome-and-ink
-     look (github.com/cosykid/wha-spell-simulator), not copied wholesale:
-     that app is a full-bleed textured workbench with slide-out drawer
-     panels; this keeps the existing column/section layout entirely as-is
-     and re-tokenizes color only, since every rule in this file already
-     reads color through these custom properties -- one edit here recolors
-     the whole site instead of touching each rule individually. */
-  --paper: #ece0c4;
-  --paper-raised: #f5ecd6;
-  --ink: #2c1c10;
-  --ink-soft: #6b5636;
-  --line: #c9b788;
-  --wash: rgba(60, 40, 15, 0.08);
-  --wash-strong: rgba(60, 40, 15, 0.16);
-  --danger: #8a3018;
-
-  /* Brass/gold accent, used sparingly for the primary action and a few
-     decorative touches -- everything else stays on --ink so the accent
-     keeps meaning "this is the important one" instead of turning into
-     wallpaper. */
-  --gold: #a9762f;
-  --gold-dark: #7c5620;
-  --gold-soft: rgba(169, 118, 47, 0.35);
-
-  /* The frame border around the whole page (see body, below) -- a
-     separate, darker wood tone from --ink so the page reads as a sheet
-     of parchment sitting inside a wooden cover, not just a darker paper. */
-  --wood: #5b3a20;
-  --wood-dark: #33200f;
-
-  --font-display: "Fraunces", serif;
-  --font-body: "Source Serif 4", serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --paper: #fbfbf8;
+  --paper-2: #f3f4f1;
+  --desk: #f2f2ee;
+  --ink: #1f2733;
+  --ink-soft: #4b5563;
+  --rule: #cfd4d9;
+  --magic: #22304f;
+  --cloak: #2f4a73;
+  --cloak-dark: #22385a;
+  --sky: #dcebf5;
+  --sage: #e3ecdc;
+  --danger: #8b2c2c;
+  --wash-sky: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400' preserveAspectRatio='none'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009' numOctaves='4' seed='4'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='46'/%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.06' numOctaves='2' seed='5'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.05'/%3E%3CfeComposite in='SourceGraphic' operator='in'/%3E%3C/filter%3E%3Cg filter='url%28%23w%29'%3E%3Cellipse cx='200' cy='200' rx='175' ry='170' fill='%23a9cbe6' fill-opacity='0.3' stroke='%236f9cc4' stroke-opacity='.28' stroke-width='1.6'/%3E%3Cellipse cx='160' cy='175' rx='110' ry='95' fill='%23a9cbe6' fill-opacity='0.165'/%3E%3Cellipse cx='245' cy='245' rx='80' ry='70' fill='%236f9cc4' fill-opacity='0.075'/%3E%3C/g%3E%3C/svg%3E");
+  --wash-sage: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400' preserveAspectRatio='none'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009' numOctaves='4' seed='9'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='46'/%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.06' numOctaves='2' seed='10'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.05'/%3E%3CfeComposite in='SourceGraphic' operator='in'/%3E%3C/filter%3E%3Cg filter='url%28%23w%29'%3E%3Cellipse cx='200' cy='200' rx='175' ry='170' fill='%23bfd3ae' fill-opacity='0.32' stroke='%238eab7c' stroke-opacity='.28' stroke-width='1.6'/%3E%3Cellipse cx='160' cy='175' rx='110' ry='95' fill='%23bfd3ae' fill-opacity='0.17600000000000002'/%3E%3Cellipse cx='245' cy='245' rx='80' ry='70' fill='%238eab7c' fill-opacity='0.08'/%3E%3C/g%3E%3C/svg%3E");
+  --tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.33  0 0 0 0 0.30  0 0 0 -1.6 1.02'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url%28%23t%29' opacity='0.09'/%3E%3C/svg%3E");
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
 }
 
-/* A faint fractal-noise grain, tiled and stitched seamlessly, layered
-   under the flat paper color wherever it's used -- inline as a data URI
-   so the self-contained static site doesn't need a texture image asset.
-   Kept as a named custom property (not baked into `body` directly) so
-   .circle-frame can reuse the exact same grain at its own opacity. */
-:root {
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
-}
-
-* {
-  box-sizing: border-box;
-}
-
-/* [hidden] loses any cascade tie against an author `display` rule on the
-   same element, so it's forced here rather than scoped per rule. */
-[hidden] {
-  display: none !important;
-}
-
-html,
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; min-height: 100%; }
 body {
-  margin: 0;
-  min-height: 100%;
-}
-
-body {
-  background-color: var(--paper);
-  background-image: var(--grain);
+  background: var(--desk);
   color: var(--ink);
-  font-family: var(--font-body);
+  font-family: var(--serif);
   line-height: 1.5;
-  /* The page sitting inside a book cover: a solid wood-tone border with
-     a diagonal gradient (border-image) standing in for grain/sheen
-     without an actual texture asset, plus an inset shadow so the paper
-     reads as recessed into the frame rather than just outlined by it. */
-  border: 14px solid var(--wood);
-  border-image: linear-gradient(135deg, var(--wood) 0%, var(--wood-dark) 50%, var(--wood) 100%) 1;
-  box-shadow: inset 0 0 32px rgba(30, 18, 8, 0.35);
-  box-sizing: border-box;
-  min-height: 100vh;
+  font-variant-numeric: lining-nums;
 }
 
-@media (max-width: 480px) {
-  body {
-    border-width: 8px;
-  }
-}
-
-h1,
+h1, h2 { font-weight: 600; margin: 0 0 0.5rem; }
 h2 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-}
-
-h2 {
-  font-size: 1rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.4rem;
+  font-size: 1.15rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.3rem;
   margin-top: 1.5rem;
 }
+h2:first-child { margin-top: 0; }
 
-h2:first-child {
-  margin-top: 0;
-}
+button, input, select { font-family: var(--serif); }
+button, select, input[type="range"], .collapsible-heading { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--cloak); outline-offset: 2px; }
 
 .collapsible-heading {
   display: flex;
@@ -113,60 +51,31 @@ h2:first-child {
   border: none;
   padding: 0;
   margin: 0;
-  cursor: pointer;
   font: inherit;
   color: inherit;
   text-align: left;
 }
-
-.collapsible-heading h2 {
-  flex: 1;
-}
-
-.collapsible-arrow {
-  color: var(--ink-soft);
-  transition: transform 0.15s ease;
-  margin-left: 0.5rem;
-}
-
-.collapsible-heading[aria-expanded="false"] .collapsible-arrow {
-  transform: rotate(-90deg);
-}
-
-.collapsible-heading[aria-expanded="false"] + [id] {
-  display: none;
-}
+.collapsible-heading h2 { flex: 1; margin-bottom: 0; }
+.collapsible-heading { border-bottom: 1px solid var(--rule); margin-bottom: 0.5rem; }
+.collapsible-heading h2 { border-bottom: none; }
+.collapsible-arrow { color: var(--ink-soft); transition: transform 0.15s ease; margin-left: 0.5rem; }
+.collapsible-heading[aria-expanded="false"] .collapsible-arrow { transform: rotate(-90deg); }
+.collapsible-heading[aria-expanded="false"] + [id] { display: none; }
 
 .site-header {
-  padding: 2rem 1.5rem 1rem;
+  padding: 2.6rem 1.5rem 1.4rem;
   text-align: center;
+  background: var(--wash-sky) center 48% / min(520px, 92%) 130px no-repeat;
 }
-
-.site-header::after {
-  content: "";
-  display: block;
-  width: 5rem;
-  height: 2px;
-  margin: 1rem auto 0;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
-
 .site-header h1 {
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-variation-settings: "opsz" 144;
-}
-
-.tagline {
-  color: var(--ink-soft);
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
   font-style: italic;
+  font-weight: 400;
+  color: var(--magic);
   margin: 0;
 }
-
-.fan-notice {
-  color: var(--ink-soft);
-  font-size: 0.78rem;
-  margin: 0.6rem 0 0;
-}
+.tagline { margin: 0.2rem 0 0; font-size: 1.1rem; }
+.fan-notice { color: var(--ink-soft); font-size: 0.85rem; margin: 0.6rem 0 0; }
 
 .workbench {
   display: grid;
@@ -176,8 +85,6 @@ h2:first-child {
   margin: 0 auto;
   padding: 1rem 1.5rem 3rem;
 }
-
-/* Below 900px the three panels are tabbed (js/ui.js) instead of stacked. */
 .mobile-tabs {
   display: flex;
   gap: 0.4rem;
@@ -186,294 +93,93 @@ h2:first-child {
   padding: 0.5rem 1.5rem;
   position: sticky;
   top: 0;
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
+  background: var(--desk);
+  border-bottom: 1px solid var(--rule);
   z-index: 20;
 }
-
 .mobile-tab {
   flex: 1;
   min-height: 44px;
-  font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   background: transparent;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--rule);
   color: var(--ink);
   padding: 0.5rem 0.6rem;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  border-radius: 3px;
 }
-
-.mobile-tab:hover {
-  background: var(--wash);
-}
-
-.mobile-tab.active {
-  background: var(--ink);
-  color: var(--paper);
-}
+.mobile-tab:hover { background: var(--paper-2); }
+.mobile-tab.active { background: var(--cloak); border-color: var(--cloak); color: #fff; }
 
 @media (min-width: 900px) {
-  .mobile-tabs {
-    display: none;
-  }
-  /* Side columns were a fixed 310px each, needing ~1036px of viewport
-     before the panels + gaps + padding actually fit -- anywhere from
-     900px (this query's own breakpoint) up to that point overflowed
-     into horizontal scroll. minmax() lets both shrink together instead,
-     and identical ranges on both sides keep them shrinking by the same
-     amount, so the circle stays centered under the title rather than
-     drifting off it the way unequal columns did before. */
+  .mobile-tabs { display: none; }
   .workbench {
     grid-template-columns: minmax(240px, 310px) minmax(280px, 1fr) minmax(240px, 310px);
     align-items: start;
   }
-  /* [hidden] only encodes the active mobile tab; desktop shows all three. */
-  .panel[hidden] {
-    display: block !important;
-  }
-  .panel-circle[hidden] {
-    display: flex !important;
-  }
+  .panel[hidden] { display: block !important; }
+  .panel-circle[hidden] { display: flex !important; }
 }
-
 @media (max-width: 899.98px) {
   .circle-actions {
     position: sticky;
     bottom: 0;
-    background: var(--paper-raised);
+    background: var(--desk);
     margin: 0 -1.25rem -1.25rem;
     padding: 0.75rem 1.25rem;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--rule);
     z-index: 5;
   }
-
-  .chip,
-  .toggle-btn,
-  .primary-btn,
-  .secondary-btn,
-  .sign-row-select {
-    min-height: 44px;
-  }
-
-  .mini-btn {
-    min-height: 36px;
-    padding: 0.4rem 0.7rem;
-  }
-
-  .correct-toggle {
-    min-height: 40px;
-    padding: 0.4rem 0;
-  }
-
-  .circle-actions {
-    gap: 1rem;
-  }
-
-  .sign-row {
-    display: flex;
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
-    column-gap: 0.6rem;
-  }
-
-  .sign-row input[type="range"] {
-    flex: 1 1 100%;
-    order: 5;
-  }
+  .chip, .toggle-btn, .primary-btn, .secondary-btn, .sign-row-select { min-height: 44px; }
+  .mini-btn { min-height: 36px; padding: 0.4rem 0.7rem; }
+  .correct-toggle { min-height: 40px; padding: 0.4rem 0; }
+  .circle-actions { gap: 1rem; }
+  .sign-row { display: flex; flex-wrap: wrap; row-gap: 0.5rem; column-gap: 0.6rem; }
+  .sign-row input[type="range"] { flex: 1 1 100%; order: 5; }
 }
 
-.panel {
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  /* A page sitting slightly proud of the parchment behind it, rather
-     than a flat outlined box -- a soft drop shadow plus a faint inset
-     highlight along the top edge, like light catching a raised card. */
-  box-shadow: 0 2px 6px rgba(40, 24, 8, 0.14), 0 1px 0 rgba(255, 250, 235, 0.5) inset;
-  padding: 1.25rem;
-  /* Without this, flex/grid items default to min-width:auto and a wide
-     row (sign-row's dropdown/slider/remove button) pushes the panel past
-     the viewport instead of wrapping. */
-  min-width: 0;
-}
+.panel { padding: 0.25rem 1.25rem 1.25rem; min-width: 0; }
 
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.5rem; }
 .chip {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  background: transparent;
-  border: 1px solid var(--ink);
+  font-size: 0.95rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
   color: var(--ink);
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  padding: 0.35rem 0.8rem;
+  border-radius: 3px;
 }
+.chip:hover { border-color: var(--ink-soft); }
+.chip.active { background: var(--cloak); border-color: var(--cloak); color: #fff; }
+.chip-image { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.7rem 0.25rem 0.3rem; }
+.chip-image:hover { border-color: rgb(var(--sigil-color, 31, 39, 51)); }
+.chip-image.active { background: var(--sky); border-color: var(--cloak); color: var(--ink); box-shadow: inset 0 0 0 1px var(--cloak); }
+.chip-image img { width: 1.7rem; height: 1.7rem; object-fit: contain; }
 
-.chip:hover {
-  background: var(--wash);
-}
+.hint { font-size: 0.92rem; color: var(--ink-soft); margin: 0.4rem 0 0; }
+.calibration-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; }
+#dataset-progress { margin-bottom: 0.6rem; }
+#export-dataset-btn { display: block; margin-bottom: 0.6rem; }
 
-.chip.active {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.chip-image {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.8rem 0.3rem 0.3rem;
-  /* --sigil-color is each element's own "r, g, b" (set inline per chip
-     in app.js, from js/data/sigils.js) -- a resting tint on the border
-     so the element picker reads as color-coded at a glance, not just a
-     row of identical outlined pills until you read the label. */
-  border-color: rgba(var(--sigil-color, 20, 18, 15), 0.45);
-}
-
-.chip-image:hover {
-  border-color: rgb(var(--sigil-color, 20, 18, 15));
-  background: rgba(var(--sigil-color, 20, 18, 15), 0.08);
-}
-
-.chip-image.active {
-  border-color: rgb(var(--sigil-color, 20, 18, 15));
-  background: rgb(var(--sigil-color, 20, 18, 15));
-}
-
-.chip-image img {
-  width: 1.6rem;
-  height: 1.6rem;
-  object-fit: contain;
-  background: var(--paper);
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(var(--sigil-color, 20, 18, 15), 0.5);
-}
-
-.hint {
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-  margin: 0.25rem 0 0;
-}
-
-.calibration-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
-}
-
-#dataset-progress {
-  margin-bottom: 0.6rem;
-}
-
-#export-dataset-btn {
-  display: block;
-  margin-bottom: 0.6rem;
-}
-
-.shape-guide {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  /* Capped and independently scrollable instead of running all 24 rows
-     out in full: on desktop the three workbench panels share one grid
-     row, so this list's own height was what decided the whole row's
-     height, and the spellbook section (a sibling below the whole
-     workbench) sat however far down that pushed it -- reachable only by
-     scrolling past every sign or collapsing this list first. Bounding
-     it keeps the spellbook a short, constant scroll away regardless of
-     whether this list is expanded, so getting to it stops requiring the
-     collapse toggle at all; every sign is still there, just a small
-     scroll within its own list instead of the page's.
-  */
-  max-height: 22rem;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0.5rem 0.5rem 0.5rem 0.6rem;
-  background: var(--paper);
-}
-
-.shape-guide-row:last-child {
-  border-bottom: none;
-}
-
-.shape-guide-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.85rem;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.shape-guide-thumb {
-  width: 2rem;
-  height: 2rem;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.shape-guide-name {
-  display: block;
-  font-family: var(--font-mono);
-  font-weight: 500;
-}
-
-.shape-guide-hint {
-  display: block;
-  color: var(--ink-soft);
-}
-
-.last-drawn {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  min-height: 1.2em;
-  margin: 0;
-}
+.shape-guide { display: flex; flex-direction: column; max-height: 22rem; overflow-y: auto; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.shape-guide-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.92rem; padding: 0.45rem 0; border-bottom: 1px solid var(--rule); }
+.shape-guide-row:last-child { border-bottom: none; }
+.shape-guide-thumb { width: 2rem; height: 2rem; object-fit: contain; flex-shrink: 0; }
+.shape-guide-name { display: block; font-weight: 600; }
+.shape-guide-hint { display: block; color: var(--ink-soft); }
+.last-drawn { font-size: 0.92rem; color: var(--ink-soft); min-height: 1.2em; margin: 0; font-style: italic; }
 
 .toggle-btn {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.03em;
-  background: transparent;
-  border: 1px dashed var(--ink-soft);
-  color: var(--ink-soft);
-  padding: 0.6rem;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.toggle-btn:hover {
-  border-style: solid;
+  font-size: 0.95rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
   color: var(--ink);
+  padding: 0.55rem 0.9rem;
+  border-radius: 3px;
 }
+.toggle-btn:hover { border-color: var(--ink-soft); }
+.toggle-btn.active { background: var(--sky); border-color: var(--cloak); }
 
-.toggle-btn.active {
-  border-style: solid;
-  border-color: var(--ink);
-  color: var(--ink);
-  background: var(--wash);
-}
-
-.panel-circle {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
+.panel-circle { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding-top: 0; }
 .circle-frame {
   position: relative;
   width: 100%;
@@ -482,600 +188,169 @@ h2:first-child {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  /* The seal's own worn patch of parchment -- a heavier dose of the same
-     grain as the page background plus a soft vignette darkening toward
-     the edges, echoing wha-spell-simulator's heavily-textured drawing
-     surface. Sits behind the (transparent) canvas, so drawn ink and the
-     cast animation both render straight over it with no extra work. */
-  background-color: var(--paper-raised);
-  background-image: radial-gradient(circle at 50% 45%, rgba(255, 250, 235, 0.5), rgba(60, 40, 15, 0.08) 70%), var(--grain);
-  background-size: cover, 200px 200px;
-  box-shadow: inset 0 0 28px rgba(50, 32, 12, 0.18);
+  background: var(--tooth), #fffefb;
+  border: 1px solid #e6e4de;
+  box-shadow: 0 1px 2px rgba(31, 39, 51, 0.08), 0 6px 18px rgba(31, 39, 51, 0.07);
 }
+.calibration-overlay { position: absolute; top: 42%; left: 35%; width: 30%; height: 30%; object-fit: contain; opacity: 0.22; pointer-events: none; }
+.calibration-banner { width: 100%; max-width: 560px; padding: 0.75rem 0.9rem; background: var(--sky); }
+.calibration-banner p { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.calibration-banner-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.calibration-step { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.6rem 0.9rem; background: var(--sage); }
+.calibration-step-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.calibration-step-header #calibration-stop { flex-shrink: 0; }
+.calibration-step p { margin: 0; font-size: 0.95rem; }
+.calibration-review-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.key-hint { color: var(--ink-soft); font-size: 0.85em; }
+#calibration-default-options { margin-top: 0.5rem; }
 
-/* Faint reference glyph shown during calibration so the sign being traced
-   doesn't require checking the shape guide separately. Sits behind the
-   canvas's own strokes; ignores pointer events so it never blocks drawing.
-   A dead-center overlay makes every traced stroke run symmetrically
-   through the ring's exact origin, and start/end distance-from-center is
-   exactly what classify.js uses to read push vs pull (and sweep vs
-   crush) -- straddling dead center makes that a coin flip. This used to
-   be fixed by shoving the whole glyph into the upper-right corner, which
-   worked but looked broken, like the reference image had lost track of
-   where the ring was. A small vertical-only nudge is enough to break the
-   exact symmetry classify.js is sensitive to (its start-point radial
-   projection only gets unstable right at the origin, not anywhere near
-   it) while keeping the glyph reading as centered on the ring the way a
-   real sigil normally does. Recognition of what the user actually drew
-   is unaffected either way -- classify.js measures every stroke against
-   the ring's true center regardless of where the reference glyph sat,
-   the same as it does for any sign drawn with no overlay at all. */
-.calibration-overlay {
-  position: absolute;
-  top: 42%;
-  left: 35%;
-  width: 30%;
-  height: 30%;
-  object-fit: contain;
-  opacity: 0.22;
-  pointer-events: none;
-}
+#circle { touch-action: pinch-zoom; cursor: crosshair; transition: transform 0.5s ease; }
+#circle.casting { transform: perspective(900px) rotateX(52deg); }
+#circle.placing { cursor: cell; }
 
-.calibration-banner {
-  width: 100%;
-  max-width: 560px;
-  padding: 0.75rem 0.9rem;
-  background: var(--wash);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-}
-
-.calibration-banner p {
-  margin: 0 0 0.6rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
-.calibration-banner-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* A column, not a row: cramming the step text, Keep/Redo, and Stop
-   calibrating into one flex row never had enough width for all three at
-   any screen size (560px is this panel's max-width everywhere, not just
-   on mobile) -- Keep/Redo wrapped into their own two-row stack while Stop
-   calibrating floated at a different baseline next to it. Each row gets
-   its own line instead, sized to fit what's actually on it. */
-.calibration-step {
-  width: 100%;
-  max-width: 560px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.6rem 0.9rem;
-  background: var(--wash-strong);
-  border: 1px solid var(--ink-soft);
-  border-radius: 4px;
-}
-
-.calibration-step-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.calibration-step-header #calibration-stop {
-  flex-shrink: 0;
-}
-
-.calibration-step p {
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-.calibration-step p strong {
-  font-family: var(--font-display);
-}
-
-.calibration-review-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.key-hint {
-  opacity: 0.65;
-  font-size: 0.85em;
-}
-
-#calibration-default-options {
-  margin-top: 0.5rem;
-}
-
-/* "none" blocked every default touch gesture on the canvas, pinch-zoom
-   included -- needed for a one-finger drag to reach the pointer handlers
-   below as a stroke instead of the browser reading it as a page-pan
-   first, but it also meant there was no way to zoom in for a more
-   precise stroke, or to pan around once zoomed, without lifting off the
-   canvas entirely first. "pinch-zoom" keeps the one-finger case fully
-   under this app's own control (a plain drag still isn't a browser
-   default here, so drawing is unaffected) while explicitly allowing the
-   two-finger pinch/pan gesture through to the browser instead of
-   swallowing it too. */
-#circle {
-  touch-action: pinch-zoom;
-  cursor: crosshair;
-  transition: transform 0.5s ease;
-}
-
-/* A real 3D transform, not a hand-drawn approximation -- toggled by
-   app.js for the duration of castEffect()'s animation (see its own
-   onComplete callback in render.js). Ring, sigil, drawn signs, and the
-   cast particles all tilt together because they're literally the same
-   canvas pixels; the browser handles the perspective projection, this
-   only has to say how far to tip it. Input is deliberately blocked
-   while this class is set (see the `casting` guard in app.js's
-   pointerdown handler) -- toLocal() maps pointer coordinates against
-   the canvas's on-screen bounding box, which a tilted transform changes
-   the shape of, so a stroke drawn mid-tilt would land in the wrong
-   place relative to what the finger/cursor is actually over. */
-#circle.casting {
-  transform: perspective(900px) rotateX(52deg);
-}
-
-#circle.placing {
-  cursor: cell;
-}
-
-.circle-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-}
-
+.circle-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
 .primary-btn {
-  font-family: var(--font-display);
+  font-size: 1.05rem;
   font-weight: 600;
-  font-size: 1rem;
-  /* The one button that actually activates the spell gets the brass
-     accent instead of plain ink, same reasoning as a book's one gilded
-     clasp -- everything else on the page stays ink-on-parchment so this
-     is the thing your eye lands on. */
-  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
-  color: var(--paper);
-  border: 1px solid var(--wood-dark);
-  box-shadow: 0 1px 0 rgba(255, 240, 210, 0.35) inset, 0 2px 4px rgba(30, 18, 8, 0.3);
-  padding: 0.6rem 1.75rem;
-  border-radius: 4px;
-  cursor: pointer;
+  background: var(--cloak);
+  color: #fff;
+  border: 1px solid var(--cloak-dark);
+  padding: 0.55rem 1.9rem;
+  border-radius: 3px;
 }
-
-.primary-btn:hover {
-  filter: brightness(1.08);
-}
-
-.primary-btn:disabled {
-  background: var(--wash-strong);
-  color: var(--ink-soft);
-  cursor: not-allowed;
-  opacity: 1;
-}
-
+.primary-btn:hover { background: var(--cloak-dark); }
+.primary-btn:disabled { background: var(--paper-2); border-color: var(--rule); color: var(--ink-soft); }
 .secondary-btn {
-  font-family: var(--font-body);
-  background: transparent;
-  border: 1px solid var(--ink);
+  font-size: 0.95rem;
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
   color: var(--ink);
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.sign-list {
-  width: 100%;
-}
-
-.sign-entry {
-  border-bottom: 1px solid var(--line);
-  padding: 0.4rem 0;
-}
-
-.sign-row {
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-}
-
-/* Grid on desktop; scoped to its own query (rather than the unqualified
-   .sign-row rule above) so it doesn't win the cascade on the mobile
-   wrapping flex rule by source order. */
-@media (min-width: 900px) {
-  .sign-row {
-    display: grid;
-    grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto auto;
-  }
-}
-
-.sign-row-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-  object-fit: contain;
-}
-
-.sign-row-label {
-  font-family: var(--font-mono);
-  color: var(--ink-soft);
-}
-
-.sign-row-name {
-  font-family: var(--font-mono);
-}
-
-.sign-row-length {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ink-soft);
-  min-width: 2.4em;
-  text-align: right;
-}
-
-.sign-row-select {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  background: var(--paper);
-  border: 1px solid var(--line);
   border-radius: 3px;
-  color: var(--ink);
-  padding: 0.15rem 0.3rem;
 }
+.secondary-btn:hover { background: var(--paper-2); }
+
+.sign-list { width: 100%; }
+.sign-entry { border-bottom: 1px solid var(--rule); padding: 0.4rem 0; }
+.sign-row { align-items: center; gap: 0.5rem; font-size: 0.92rem; }
+@media (min-width: 900px) {
+  .sign-row { display: grid; grid-template-columns: auto auto minmax(90px, 1fr) minmax(70px, 1fr) auto auto; }
+}
+.sign-row-thumb { width: 1.5rem; height: 1.5rem; object-fit: contain; }
+.sign-row-label { color: var(--ink-soft); }
+.sign-row-name { font-weight: 600; }
+.sign-row-length { font-size: 0.85rem; color: var(--ink-soft); min-width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
+.sign-row-select { font-size: 0.9rem; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; color: var(--ink); padding: 0.15rem 0.3rem; }
+input[type="range"] { accent-color: var(--cloak); }
 
 .mini-btn {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  background: transparent;
-  border: 1px solid var(--ink-soft);
-  color: var(--ink-soft);
-  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.25rem 0.55rem;
   border-radius: 3px;
-  cursor: pointer;
 }
-
-.mini-btn:not(.danger):hover {
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.mini-btn.danger:hover {
-  border-color: var(--ink);
-  color: var(--ink);
-  text-decoration: line-through;
-}
+.mini-btn:hover { border-color: var(--ink-soft); }
+.mini-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 
 .correct-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   margin-top: 0.4rem;
-  font-family: var(--font-body);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-style: italic;
   background: transparent;
   border: none;
   color: var(--ink-soft);
   padding: 0.2rem 0;
-  cursor: pointer;
   text-decoration: underline;
-  text-decoration-style: dotted;
   text-underline-offset: 3px;
 }
+.correct-toggle:hover, .correct-toggle[aria-expanded="true"] { color: var(--ink); }
+.correct-toggle-icon { font-style: normal; }
+.correct-panel { margin-top: 0.5rem; padding: 0.65rem 0.75rem; background: #fffefb; border: 1px solid #e6e4de; }
+.correct-panel-hint { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--ink-soft); }
+.correct-options { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.correct-chip { font-size: 0.88rem; padding: 0.3rem 0.65rem; }
+.correct-panel-confirm { margin: 0.65rem 0 0; font-size: 0.9rem; font-style: italic; }
 
-.correct-toggle:hover,
-.correct-toggle[aria-expanded="true"] {
-  color: var(--ink);
-}
+.muted { color: var(--ink-soft); font-size: 0.95rem; }
+.readout dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; font-size: 0.95rem; margin: 0; }
+.readout dt { color: var(--ink-soft); }
+.readout dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.effect-label { font-style: italic; font-size: 1.05rem; margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--rule); }
+.spell-match { font-size: 0.95rem; background: var(--sky); padding: 0.5rem 0.75rem; margin: 0.75rem 0 0; }
+.warnings { font-size: 0.92rem; background: #fffefb; border: 1px solid #e6e4de; padding: 0.5rem 0.75rem 0.5rem 1.6rem; margin: 0.75rem 0 0; }
+.status { font-size: 0.92rem; margin: 0.75rem 0 0; font-style: italic; }
+.status.warn { color: var(--danger); }
 
-.correct-toggle-icon {
-  font-style: normal;
-}
-
-.correct-panel {
-  margin-top: 0.5rem;
-  padding: 0.65rem 0.75rem;
-  background: var(--wash);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-}
-
-.correct-panel-hint {
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-}
-
-.correct-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.correct-chip {
-  font-size: 0.78rem;
-  padding: 0.35rem 0.7rem;
-}
-
-.correct-panel-confirm {
-  margin: 0.65rem 0 0;
-  font-size: 0.78rem;
-  color: var(--ink);
-  font-style: italic;
-}
-
-.secondary-btn:hover {
-  background: var(--wash);
-}
-
-.muted {
-  color: var(--ink-soft);
-  font-size: 0.9rem;
-}
-
-.readout dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  margin: 0;
-}
-
-.readout dt {
-  color: var(--ink-soft);
-}
-
-.readout dd {
-  margin: 0;
-  text-align: right;
-}
-
-.effect-label {
-  font-family: var(--font-display);
-  font-style: italic;
-  margin: 1rem 0 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
-}
-
-.spell-match {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--ink);
-  border-left: 3px solid var(--ink);
-  padding: 0.4rem 0.75rem;
-  margin: 0.75rem 0 0;
-}
-
-.warnings {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--ink);
-  background: var(--wash-strong);
-  border-left: 3px solid var(--ink);
-  padding: 0.5rem 0.75rem;
-  margin: 0.75rem 0 0;
-  list-style: none;
-}
-
-.status {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin: 0.75rem 0 0;
-}
-
-.status.ok::before {
-  content: "● ";
-}
-
-.status.warn {
-  color: var(--danger);
-}
-
-.status.warn::before {
-  content: "▲ ";
-}
-
-.save-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
+.save-row { display: flex; gap: 0.5rem; }
 .save-row input {
   flex: 1;
-  font-family: var(--font-body);
+  min-width: 0;
+  font-size: 0.95rem;
   padding: 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
   background: var(--paper);
   color: var(--ink);
 }
+.grimoire-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--rule); }
+.grimoire-title { flex: 1; text-align: left; background: none; border: none; font-size: 1rem; color: var(--ink); padding: 0; }
+.grimoire-title:hover { text-decoration: underline; }
 
-.grimoire-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.grimoire-title {
-  flex: 1;
-  text-align: left;
-  background: none;
+.spellbook-section { max-width: 1400px; margin: 0 auto; padding: 1rem 1.5rem 3rem; }
+.spellbook-section > h2 {
+  display: inline-block;
+  font-size: 1.6rem;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--magic);
   border: none;
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  color: var(--ink);
-  cursor: pointer;
-  padding: 0;
+  margin-left: -0.6rem;
+  padding: 0.7rem 2.2rem 0.6rem 1.6rem;
+  background: var(--wash-sage) center / 100% 100% no-repeat;
 }
-
-.grimoire-title:hover {
-  text-decoration: underline;
-}
-
-.spellbook-section {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1.5rem 3rem;
-}
-
 .spellbook-controls {
   position: sticky;
   top: 0;
   z-index: 15;
   display: flex;
   gap: 0.6rem;
-  background: var(--paper);
+  background: var(--desk);
   padding: 0.6rem 0;
   margin-top: 0.5rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
-
 .spellbook-controls input[type="search"] {
   flex: 1;
+  min-width: 0;
   min-height: 44px;
-  font-family: var(--font-body);
+  font-size: 1rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
   color: var(--ink);
 }
+.spellbook-controls .toggle-btn { flex-shrink: 0; }
+.spellbook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1.6rem 1.2rem; margin-top: 1.2rem; }
+@media (max-width: 480px) { .spellbook-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 481px) and (max-width: 899.98px) { .spellbook-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); } }
+.spellbook-card { margin: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.spellbook-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; }
+.spellbook-title-row { display: flex; flex-direction: column; gap: 0.1rem; }
+.spellbook-title { display: block; font-size: 1rem; font-weight: 600; }
+.recognized-badge { font-size: 0.85rem; font-style: italic; color: var(--cloak); white-space: nowrap; }
+.spellbook-desc { display: block; font-size: 0.9rem; color: var(--ink-soft); }
 
-.spellbook-controls .toggle-btn {
-  flex-shrink: 0;
-}
-
-.spellbook-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 480px) {
-  .spellbook-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 481px) and (max-width: 899.98px) {
-  .spellbook-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-}
-
-.spellbook-card {
-  margin: 0;
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(40, 24, 8, 0.1);
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.spellbook-card img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-}
-
-.spellbook-title-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.spellbook-title {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-}
-
-.recognized-badge {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 1px solid var(--ink);
-  color: var(--ink);
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.spellbook-desc {
-  display: block;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin-top: 0.25rem;
-}
-
-.site-footer {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1.5rem 1.5rem 3rem;
-  text-align: center;
-}
-
-.site-footer a {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  text-decoration: none;
-  border-bottom: 1px dashed var(--ink-soft);
-}
-
-.footer-note {
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin: 0 0 0.9rem;
-}
-
-.footer-note a {
-  font-family: var(--font-mono);
-  color: var(--ink-soft);
-  border-bottom: 1px dashed var(--ink-soft);
-}
-
-.footer-note a:hover {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-}
-
-.site-footer a:hover {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-}
+.site-footer { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; text-align: center; border-top: 1px solid var(--rule); }
+.site-footer a { color: var(--ink-soft); }
+.site-footer a:hover { color: var(--ink); }
+.footer-note { font-size: 0.9rem; color: var(--ink-soft); margin: 0 0 0.6rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
